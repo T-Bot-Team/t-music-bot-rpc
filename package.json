@@ -2,6 +2,6 @@
   "type": "module",
   "dependencies": {
     "@performanc/pwsl": "github:PerformanC/Internals#PWSL",
-    "discord-rpc": "^4.0.1"
+    "@t_bot-team/discord-rpc": "^4.0.5"
   }
 }

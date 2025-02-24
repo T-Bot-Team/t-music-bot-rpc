@@ -1,187 +1,94 @@
-import RPC from "discord-rpc";
-import PWSL from '@performanc/pwsl';
-import fs from 'fs'; // Using fs for file system operations
-import { v4 as uuidv4 } from 'uuid'; // Import UUID generation
+import RPC from "@t_bot-team/discord-rpc";
+import PWSL from "@performanc/pwsl";
+import config from "./config.json" assert { type: "json" };
 
 const rpc = new RPC.Client({ transport: "ipc" });
-const ws = new PWSL('ws://localhost:8080/ws');
-const scopes = ["rpc", "rpc.voice.read"];
+let ws = null;
+let reconnectDelay = 1000; // Start at 1 second
+const maxDelay = 30000; // Max 30 seconds
 
-// DO NOT CHANGE THESE VALUES OTHERWISE IT WILL NOT WORK
-const clientId = "853333281155579975";
-const targetUserId = "924669114138644500";
-
-// Function to save tokens to file
-function saveTokens(tokens) {
-    fs.writeFileSync('tokens.json', JSON.stringify(tokens, null, 2));  // Save tokens to tokens.json
-}
-
-// Function to load tokens from file
-function loadTokens() {
-    if (fs.existsSync('tokens.json')) {
-        const data = fs.readFileSync('tokens.json', 'utf8');
-        return JSON.parse(data);
-    }
-    return null;
-}
-
-// 🎮 Update RPC Presence
 async function updateRPC(data) {
-    if (!data) return rpc.clearActivity();
+  if (!data) return rpc.clearActivity();
 
-    const currentTime = Date.now();
-    rpc.setActivity({
-        details: data.details,
-        state: data.state,
-        largeImageKey: data.largeImageKey || null,
-        smallImageKey: data.smallImageKey || null,
-        smallImageText: data.smallImageText || null,
-        type: 2,
-        startTimestamp: currentTime - data.startTimestamp || null, // Current time minus the playback position
-        endTimestamp: currentTime + (data.endTimestamp - data.startTimestamp) || null, // Current time plus remaining track duration
-        instance: false
-    });
+  const currentTime = Date.now();
+  const endTimestamp =
+    data.endTimestamp !== undefined
+      ? currentTime + (data.endTimestamp - data.startTimestamp)
+      : undefined;
 
-    // Send a request to the websocket server to make sure that the track is updated
-    if (data.startTimestamp && data.endTimestamp) {
-        setTimeout(async () => {
-            const ch = await rpc.getSelectedVoiceChannel();
-            ws.send(JSON.stringify({ type: "user_speaking_start", channelId: ch?.id, userId: targetUserId }));
-        }, data.endTimestamp - data.startTimestamp + 50);
-    }
+  rpc.setActivity({
+    details: data.details,
+    state: data.state,
+    largeImageKey: data.largeImageKey || null,
+    smallImageKey: data.smallImageKey || null,
+    smallImageText: data.smallImageText || null,
+    type: 2,
+    startTimestamp: currentTime - data.startTimestamp,
+    endTimestamp,
+    instance: false,
+  });
 }
 
-// 🔌 Initialize Discord RPC
-async function initRPC(accessToken) {
-    rpc.on("ready", async () => {
-        console.log("✅ RPC Connected!");
+// Properly close existing WebSocket before creating a new one
+function connect() {
+  if (ws) {
+    console.log("🔴 // Closing existing WebSocket connection...");
+    ws.removeAllListeners(); // Remove old event listeners
+    ws.close(); // Close previous WebSocket
+    ws = null;
+  }
 
-        const [, vc] = await Promise.all([
-            rpc.subscribe("VOICE_CHANNEL_SELECT"),
-            rpc.getSelectedVoiceChannel()
-        ]);
-        // Check if already in a voice channel
-        if (vc) subscribeToVoiceEvents(rpc, vc.id);
-    });
+  ws = new PWSL("ws://localhost:8080/ws");
 
-    rpc.on("VOICE_CHANNEL_SELECT", async (channel) => {
-        if (!channel.channel_id) {
-            unsubscribeFromVoiceEvents();
-            return console.log("🔴 Left voice channel.");
-        }
+  ws.on("open", () => {
+    console.log("✅ >> Connected to WebSocket server.");
+    reconnectDelay = 1000; // Reset reconnect delay on successful connection
+    ws.send(JSON.stringify({ type: "connect" }));
+  });
 
-        console.log(`🟢 Joined voice channel ${channel.channel_id}`);
-        subscribeToVoiceEvents(rpc, channel.channel_id);
-    });
-
-    rpc.login({ clientId, scopes, accessToken, redirectUri: "http://localhost/" })
-        .then(data => console.log("🔑 RPC Login Successful!", data))
-        .catch(err => console.error("❌ RPC Login Failed:", err));
-}
-
-// 🎤 Manage Voice Events
-async function subscribeToVoiceEvents(client, channelId) {
-    const vc = await client.getChannel(channelId);
-
-    await Promise.all([
-        client.subscribe("SPEAKING_START", { channel_id: vc.id }),
-        client.subscribe("SPEAKING_STOP", { channel_id: vc.id }),
-        client.subscribe("VOICE_STATE_CREATE", { channel_id: vc.id })
-    ]);
-
-    console.log("🔍 Checking voice channel participants...");
-
-    console.log(vc?.voice_states.map(x => x.user.id));
-
-    if (vc?.voice_states.some(x => x.user.id === targetUserId)) {
-        console.log("🎶 Target user found in channel!");
-        updateRPC(client, {
-            details: `Waiting for tracks`,
-            state: `In a voice channel`,
-        });
-    }
-
-    client.on("SPEAKING_START", (data) => handleSpeakingEvent(data, "start"));
-    client.on("SPEAKING_STOP", (data) => handleSpeakingEvent(data, "stop"));
-
-    client.on("VOICE_STATE_CREATE", (data) => {
-        if (data.user_id === targetUserId) {
-            console.log("🎶 Target user joined the channel!");
-            updateRPC(client, {
-                details: `Waiting for tracks`,
-                state: `In a voice channel`,
-            });
-        }
-    });
-}
-
-// 🗣️ Handle Speaking Events
-async function handleSpeakingEvent(data, type) {
-    if (data.user_id === targetUserId) {
-        ws.send(JSON.stringify({
-            type: `user_speaking_${type}`,
-            channelId: data.channel_id,
-            userId: targetUserId
-        }));
-    }
-}
-
-// ❌ Unsubscribe from Voice Events
-async function unsubscribeFromVoiceEvents() {
-    rpc.removeAllListeners("SPEAKING_START");
-    rpc.removeAllListeners("SPEAKING_STOP");
-}
-
-// 🔌 WebSocket connection opens
-ws.on("open", () => {
-    console.log("✅ Connected to WebSocket server.");
-    // Generate a session ID on the client side
-    const sessionId = uuidv4();
-    ws.sessionId = sessionId; // Assign sessionId to the WebSocket connection for later use
-
-    // Send an authentication request to the server along with the session ID
-    ws.send(JSON.stringify({ type: "initiate_auth", sessionId, access_token: loadTokens().access_token }));
-});
-
-// 📩 Handle WebSocket messages
-ws.on("message", (data) => {
+  ws.on("message", (data) => {
+    if (config.debug_mode) console.log("📩 Received data", data);
     const message = JSON.parse(data);
 
     switch (message.type) {
-        case "auth_request":
-            console.log("🔑 Received auth request, please authorize using this link.");
-            console.log(`🔗 ${message.authUrl}`);
-            ws.sessionId = message.sessionId; // Store session ID
-            break;
+      case "connect":
+        console.log("🔗 >> WebSocket Connection Established.");
+        break;
 
-        case "existing_token":
-            console.log("🟢 Authentication already valid!");
-            initRPC(message.access_token);
-            break;
+      case "rpc_update":
+        updateRPC(message.data);
+        break;
 
-        case "auth_success":
-            console.log("🟢 Authentication successful!");
-            saveTokens({
-                access_token: message.access_token,
-                refresh_token: message.refresh_token
-            });
-            initRPC(message.access_token);
-            break;
+      case "error":
+        console.error(`❌ // WebSocket Error: ${message.message}`);
+        break;
 
-        case "rpc_update":
-            updateRPC(message.data);
-            break
-
-        case "auth_error":
-        case "refresh_error":
-        case "error":
-            console.error(`❌ ${message.type}:`, message.message);
-            break;
-
-        default:
-            console.warn("⚠️ Unhandled WebSocket message type:", message.type);
+      default:
+        console.warn("⚠️ // Unhandled WebSocket message type:", message.type);
     }
-});
+  });
 
-ws.on("error", (err) => console.error("❌ WebSocket error:", err));
-ws.on("close", () => console.log("🔴 Disconnected from WebSocket server."));
+  ws.on("error", (err) => {
+    console.error(`❌ // WebSocket error: ${config.debug_mode ? err : err.code}`);
+  });
+
+  ws.on("close", () => {
+    console.log("🔴 // Disconnected from WebSocket server.");
+    
+    // Apply exponential backoff with jitter
+    const jitter = Math.random() * 0.3 * reconnectDelay;
+    const delay = Math.min(reconnectDelay + jitter, maxDelay);
+    console.log(`⏳ // Attempting reconnection in ${Math.floor(delay)}ms...`);
+
+    setTimeout(connect, delay);
+    reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+  });
+}
+
+// Start WebSocket connection
+connect();
+
+// Monitor RAM Usage
+setInterval(() => {
+  console.log(`💻 Memory Usage: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`);
+}, 15000);
