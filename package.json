@@ -1,29 +1,31 @@
 {
   "name": "t-music-rpc",
   "version": "1.0.0",
-  "description": "T-Music RPC Client with Tray",
+  "description": "T-Music RPC Client",
   "main": "index.js",
-  "type": "module",
   "bin": "index.js",
   "author": "TehPig",
   "scripts": {
     "start": "node index.js",
-    "build": "pkg . --out-path=dist"
+    "build": "node build.js"
   },
   "pkg": {
+    "assets": [
+      "icon.ico",
+      "icon.png",
+      "node_modules/systray2/traybin/**/*"
+    ],
     "targets": [
       "node18-win-x64",
       "node18-linux-x64"
-    ],
-    "assets": [
-      "node_modules/systray2/traybin/**/*"
-    ],
-    "outputPath": "dist"
+    ]
   },
   "dependencies": {
-    "@performanc/pwsl": "github:PerformanC/Internals#PWSL",
     "@t_bot-team/discord-rpc": "^4.0.5",
-    "pkg": "^5.8.1",
-    "systray2": "^2.1.4"
+    "systray2": "^2.1.4",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }

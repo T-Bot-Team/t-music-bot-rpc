@@ -1,246 +1,298 @@
-import RPC from "@t_bot-team/discord-rpc";
-import PWSL from "@performanc/pwsl";
-import SysTray from "systray2";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { createRequire } from "module";
-import { fileURLToPath } from "url";
+// --- Globals (Absolute Top) ---
+var wsClient = null;
+var rpcClient = null;
+var tray = null;
+var trayReady = false;
+var state = { ws: "Disconnected", rpc: "Disconnected" };
+var lastTrayState = "";
+var currentClientId = null;
+var currentCode = null;
+var rpcReconnectTimeout = null;
+var trayUpdateTimeout = null;
+var isConnectingRPC = false;
+var heartbeatInterval = null;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
-const config = require("./config.json");
+// Version
+let APP_VERSION = "v1.0.0";
+try { 
+    APP_VERSION = `v${require('./package.json').version}`; 
+} catch (e) {}
 
-// --- Optimization & Config ---
-const log = (m, e) => (e || config.debug_mode) && console[e ? 'error' : 'log'](m);
-const RPC_OPTS = { transport: "ipc" };
-const WS_URL = process.env.RPC_WS_URL || "wss://rpc.tehcraft.xyz/ws";
-const RECONNECT_INTERVAL = 60000; // 1 minute watchdog
-let rpc, ws, tray, hb, retryTimer;
-let state = { ws: false, rpc: false, connecting: false, lastActivity: null };
+// RPC Rate Limiting
+var updateHistory = [];
+var pendingActivity = null;
+var rpcUpdateTimeout = null;
+const MAX_UPDATES = 5;
+const WINDOW_MS = 20500;
 
-// --- System Tray Setup ---
-const itemQuit = { title: "Quit", tooltip: "Exit Application", checked: false, enabled: true };
-const itemStatus = { title: "Status: Starting...", tooltip: "Connection Status", checked: false, enabled: false };
+const RPC = require("@t_bot-team/discord-rpc");
+const WebSocket = require("ws");
+const SysTray = require("systray2").default;
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { exec } = require("child_process");
 
-function getTrayBinPath() {
-  const platform = os.platform();
-  const binName = {
-    win32: 'tray_windows_release.exe',
-    linux: 'tray_linux_release',
-    darwin: 'tray_darwin_release'
-  }[platform];
-  
-  if (!binName) return null;
+// --- Configuration ---
+const WS_URL = "wss://rpc.tehcraft.xyz/ws";
+const isPkg = !!process.pkg;
+const root = isPkg ? path.dirname(process.execPath) : __dirname;
+const settingsFile = path.join(root, "settings.json");
+const logFile = path.join(root, "logs.txt");
 
-  const pkgPath = path.join(__dirname, 'node_modules/systray2/traybin', binName);
-  
-  if (process.pkg) {
-    // Extract binary from snapshot to temp
-    const tmpPath = path.join(os.tmpdir(), `t-music-rpc-${binName}`);
-    if (!fs.existsSync(tmpPath)) {
-      try {
-        fs.writeFileSync(tmpPath, fs.readFileSync(pkgPath));
-        if (platform !== 'win32') fs.chmodSync(tmpPath, 0o755);
-      } catch (e) {
-        log(`⚠️ // Extract Failed: ${e.message}`, 1);
-        return null;
-      }
-    }
-    return tmpPath;
-  }
-  return pkgPath;
+// Extraction folder for assets (Matches systray2 internal logic)
+const baseTempDir = path.join(os.tmpdir(), "tmusic_rpc_v69");
+const binsTempDir = path.join(baseTempDir, "2.1.4"); // Explicit version for systray2
+if (!fs.existsSync(binsTempDir)) fs.mkdirSync(binsTempDir, { recursive: true });
+
+const binName = ({ 
+    win32: "tray_windows_release.exe", 
+    darwin: "tray_darwin_release", 
+    linux: "tray_linux_release" 
+})[process.platform];
+
+const runtimeIconIco = path.resolve(path.join(baseTempDir, "icon.ico"));
+const runtimeIconPng = path.resolve(path.join(baseTempDir, "icon.png"));
+const runtimeBin = path.resolve(path.join(binsTempDir, binName));
+
+const activeIcon = process.platform === 'win32' ? runtimeIconIco : runtimeIconPng;
+
+function log(m) {
+    const msg = `[${new Date().toLocaleTimeString()}] ${m}`;
+    console.log(msg);
+    try { fs.appendFileSync(logFile, msg + "\n"); } catch (e) {}
 }
 
-const trayMenu = {
-  icon: fs.existsSync("icon.ico") ? fs.readFileSync("icon.ico", "base64") : "",
-  title: "T-Music RPC",
-  tooltip: "T-Music RPC Client",
-  items: [itemStatus, SysTray.separator, itemQuit],
-};
-
-function updateTray(status) {
-  if (!tray) return;
-  itemStatus.title = `Status: ${status}`;
-  tray.sendAction({ type: "update-item", item: itemStatus });
+// --- Aggressive Console Hiding (Windows) ---
+if (process.platform === 'win32' && isPkg) {
+    const hide = () => {
+        const cmd = `powershell -NoProfile -Command "Add-Type -Name Win -Namespace Win -MemberDefinition '[DllImport(\\"kernel32.dll\\")] public static extern IntPtr GetConsoleWindow(); [DllImport(\\"user32.dll\\")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);'; $h = [Win.Win]::GetConsoleWindow(); if ($h -ne [IntPtr]::Zero) { [Win.Win]::ShowWindow($h, 0) }"`;
+        exec(cmd, { windowsHide: true });
+    };
+    hide();
+    setTimeout(hide, 1000);
+    setTimeout(hide, 2000);
 }
 
-try {
-  const binPath = getTrayBinPath();
-  if (binPath) {
-    // SysTray options might need tweaking depending on version, 
-    // but systray2 usually takes just the menu. 
-    // However, to use custom bin, we might need to patch or use specific constructor options if available.
-    // Looking at systray2 source, it tries to find the bin automatically.
-    // We can overwrite the internal property or use a subclass if needed, 
-    // but simpler: if process.pkg, we might need to rely on it finding the temp file if we set it?
-    // Actually, systray2 checks `pkg` and tries to run.
-    // Let's force the path by passing it if the library supports it, or hacking it.
-    // Reading systray2 source: it uses `path.resolve(__dirname, ...)` which fails in pkg for spawn.
-    // We need to set `process.env.TRAYBIN_PATH`? No.
-    // Wait, systray2 v2.1.0 allows `binPath` in constructor? No, check index.d.ts if available or assume.
-    // Standard systray doesn't. 
-    // HACK: We can't easily pass the path to the constructor in some versions.
-    // BUT, since we are rewriting, we can try to use a modified approach or just hope the library handles it?
-    // No, `pkg` is strict.
-    // Let's try to set `binPath` in the options if possible.
-    // If not, we might fail to launch tray in pkg without a library patch.
-    // ALTERNATIVE: Use `process.env.SYSTRAY_PATH` if the lib supports it.
-    // Let's assume standard usage and if it fails, it fails (graceful degradation).
-    // Actually, let's try to pass it as a second arg or config?
-    // Checking `systray2` common patterns: `new SysTray({ menu, binPath: ... })` might work.
-    tray = new SysTray.default({ menu: trayMenu, binPath }); // Try this
-    
-    tray.onClick(action => {
-      if (action.item.title === "Quit") process.exit(0);
-    });
-    log("✅ >> System Tray initialized.");
-  } else {
-    log("⚠️ // Tray binary not found.", 1);
-  }
-} catch (e) {
-  log(`⚠️ // Tray Init Failed: ${e.message}`, 1);
-}
-
-// --- RPC & WS Logic ---
-function initRPC() {
-  if (rpc) try { rpc.destroy(); } catch {}
-  rpc = new RPC.Client(RPC_OPTS);
-
-  rpc.on("ready", () => {
-    log("✅ >> RPC Connected!");
-    state.rpc = true;
-    updateTray("RPC Connected");
-    sendAuth();
-    if (state.lastActivity) updateRPC(state.lastActivity);
-  });
-
-  rpc.on("disconnected", () => {
-    log("🔴 // RPC Disconnected", 1);
-    state.rpc = false;
-    updateTray("RPC Disconnected");
-    // Don't force reconnect WS here, just wait for watchdog or WS error
-  });
-}
-
-function sendAuth() {
-  if (state.ws && state.rpc && rpc.user && config.pairing_code) {
-    ws.send(JSON.stringify({ type: "auth", userId: rpc.user.id, code: String(config.pairing_code).trim() }));
-  }
-}
-
-async function updateRPC(data) {
-  state.lastActivity = data;
-  if (!state.rpc) return;
-  if (!data) return rpc.clearActivity().catch(e => log(`❌ // Clear: ${e.message}`, 1));
-
-  const now = Date.now(), isAbs = v => v > 1e12;
-  let start = Number(data.startTimestamp), end = data.endTimestamp !== undefined ? Number(data.endTimestamp) : undefined;
-  
-  if (start && !isAbs(start)) start = now - start;
-  // Fix: End time logic optimization
-  if (end && !isAbs(end)) end = (start ? start : now) + end;
-
-  try {
-    await rpc.setActivity({
-      details: data.details, state: data.state,
-      largeImageKey: data.largeImageKey, largeImageText: data.largeImageText,
-      smallImageKey: data.smallImageKey, smallImageText: data.smallImageText,
-      type: 2, instance: false,
-      startTimestamp: start ? Math.floor(start) : undefined,
-      endTimestamp: end ? Math.floor(end) : undefined,
-    });
-  } catch (e) { log(`❌ // Set Activity: ${e.message}`, 1); }
-}
-
-function connect() {
-  if (state.connecting) return;
-  state.connecting = true;
-  updateTray("Connecting...");
-
-  if (ws) {
-    clearInterval(hb);
-    ws.removeAllListeners();
-    try { ws.close(); } catch {}
-  }
-
-  log("🌐 // Connecting WS...");
-  ws = new PWSL(WS_URL);
-
-  ws.on("open", () => {
-    log("✅ >> WS Open.");
-    state.ws = true;
-    state.connecting = false;
-    updateTray("WS Connected");
-    ws.send(JSON.stringify({ type: "connect" }));
-    
-    // Heartbeat
-    clearInterval(hb);
-    hb = setInterval(() => {
-      try { ws.sendData(Buffer.alloc(0), { len: 0, fin: true, opcode: 0x9, mask: true }); }
-      catch { reconnect(); }
-    }, 30000);
-  });
-
-  ws.on("message", (data) => {
+function extractAssets() {
     try {
-      const m = JSON.parse(data);
-      switch(m.type) {
-        case "connect": 
-          initRPC(); 
-          rpc.login({ clientId: m.clientId }).catch(e => log(`❌ // Login: ${e.message}`, 1));
-          break;
-        case "authenticated": 
-          log("🔓 // Auth OK."); 
-          updateTray("Authenticated");
-          break;
-        case "rpc_update": 
-          updateRPC(m.data); 
-          break;
-        case "error": 
-          log(`❌ // Server: ${m.message}`, 1); 
-          // If auth error, maybe don't reconnect immediately to avoid loop, but watchdog will handle it.
-          if (m.message.includes("pairing")) updateTray("Auth Failed");
-          break;
-      }
-    } catch (e) { log(`❌ // Parse: ${e.message}`, 1); }
-  });
-
-  ws.on("close", () => {
-    log("🔴 // WS Closed");
-    state.ws = false;
-    state.connecting = false;
-    updateTray("Disconnected");
-    reconnect();
-  });
-
-  ws.on("error", (e) => log(`❌ // WS Error: ${e.message}`, 1));
+        // Extract Icons
+        const icoPath = path.join(__dirname, "icon.ico");
+        if (fs.existsSync(icoPath)) fs.writeFileSync(runtimeIconIco, fs.readFileSync(icoPath));
+        const pngPath = path.join(__dirname, "icon.png");
+        if (fs.existsSync(pngPath)) fs.writeFileSync(runtimeIconPng, fs.readFileSync(pngPath));
+        
+        // Extract Binary to EXACT path systray2 expects to fix EACCES
+        const binPath = path.join(__dirname, "node_modules/systray2/traybin", binName);
+        if (fs.existsSync(binPath)) {
+            fs.writeFileSync(runtimeBin, fs.readFileSync(binPath));
+            if (process.platform !== 'win32') fs.chmodSync(runtimeBin, 0o755);
+            log(`Binary prepared at: ${runtimeBin}`);
+        }
+    } catch (e) { log(`Extraction Error: ${e.message}`); }
 }
 
-function reconnect() {
-  if (retryTimer) return;
-  log(`🔄 // Reconnecting in 5s...`);
-  state.connecting = false; // Reset flag to allow connect()
-  retryTimer = setTimeout(() => {
-    retryTimer = null;
-    connect();
-  }, 5000);
+// --- Tray Logic ---
+function getMenu() {
+    return {
+        icon: activeIcon,
+        title: "T_Music_Bot",
+        tooltip: "T_Music_Bot RPC",
+        items: [
+            { title: `T_Music_Bot ${APP_VERSION}`, enabled: false, __id: 1 },
+            { title: "<SEPARATOR>", enabled: true, __id: 2 },
+            { title: `WS: ${state.ws}`, enabled: false, __id: 3 },
+            { title: `RPC: ${state.rpc}`, enabled: false, __id: 4 },
+            { title: "<SEPARATOR>", enabled: true, __id: 5 },
+            { title: "Open Logs", enabled: true, __id: 6 },
+            { title: "Quit", enabled: true, __id: 7 }
+        ]
+    };
 }
 
-// --- Watchdog ---
-setInterval(() => {
-  if (!state.ws) {
-    log("⏰ // Watchdog: WS disconnected. Reconnecting...");
-    connect();
-  } else if (!state.rpc && state.ws) {
-     log("⏰ // Watchdog: RPC disconnected but WS connected. Re-initiating...");
-     // Triggering a re-login might be needed if RPC died locally
-     // We can ask server to re-send connect? Or just re-login if we have clientId?
-     // For now, simpler to restart WS connection to refresh everything
-     connect();
-  }
-}, RECONNECT_INTERVAL);
+function updateTray() {
+    if (!tray || !trayReady) return;
+    const currentStateStr = `${state.ws}|${state.rpc}`;
+    if (currentStateStr === lastTrayState) return;
+    
+    if (trayUpdateTimeout) return;
+    trayUpdateTimeout = setTimeout(() => {
+        trayUpdateTimeout = null;
+        lastTrayState = currentStateStr;
+        try {
+            // Full Redraw method confirmed visually working
+            tray.sendAction({ type: "update-menu", menu: getMenu() });
+            log(`Tray visually updated: WS=${state.ws} | RPC=${state.rpc}`);
+        } catch (e) { log(`Tray Sync Fail: ${e.message}`); }
+    }, 200);
+}
 
-// Start
-connect();
+async function initTray() {
+    log("Initializing Tray...");
+    extractAssets();
+    await new Promise(r => setTimeout(r, 1000));
+
+    try {
+        tray = new SysTray({
+            menu: getMenu(),
+            debug: false,
+            copyDir: baseTempDir // Matches manual extraction path
+        });
+        await tray.ready();
+        trayReady = true;
+        log("Tray is fully ready.");
+        updateTray();
+        tray.onClick(action => {
+            if (action.item.title === "Quit") process.exit(0);
+            if (action.item.title === "Open Logs") {
+                const cmd = process.platform === 'win32' ? `start "" "${logFile}"` : `xdg-open "${logFile}"`;
+                exec(cmd, { windowsHide: true });
+            }
+        });
+    } catch (e) { log(`Tray Init Error: ${e.message}`); }
+}
+
+// --- Discord RPC ---
+async function destroyRPC() {
+    if (rpcReconnectTimeout) clearTimeout(rpcReconnectTimeout);
+    if (rpcClient) {
+        log("Cleaning up Discord RPC...");
+        const client = rpcClient;
+        rpcClient = null;
+        try { client.removeAllListeners(); await client.destroy(); } catch (e) {}
+    }
+    if (state.rpc !== "Disconnected") {
+        state.rpc = "Disconnected";
+        updateTray();
+    }
+}
+
+async function startRPC(clientId, code) {
+    if (isConnectingRPC) return;
+    isConnectingRPC = true;
+    currentClientId = clientId;
+    currentCode = code;
+    
+    await destroyRPC();
+    await new Promise(r => setTimeout(r, 2000)); // OS Pipe Cooldown
+
+    log(`Connecting Discord...`);
+    state.rpc = "Connecting...";
+    updateTray();
+
+    rpcClient = new RPC.Client({ transport: "ipc" });
+    rpcClient.on('ready', () => {
+        log("Discord RPC Ready.");
+        state.rpc = "Connected";
+        updateTray();
+        isConnectingRPC = false;
+        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+            wsClient.send(JSON.stringify({ type: "auth", userId: rpcClient.user.id, code: code }));
+            wsClient.send(JSON.stringify({ type: "request_update", userId: rpcClient.user.id }));
+        }
+    });
+    rpcClient.on('disconnected', () => {
+        log("Discord RPC Lost.");
+        destroyRPC();
+        scheduleRPCReconnect();
+    });
+    rpcClient.login({ clientId }).catch(e => {
+        log(`Discord Fail: ${e.message}`);
+        state.rpc = "Discord Not Found";
+        updateTray();
+        isConnectingRPC = false;
+        scheduleRPCReconnect();
+    });
+}
+
+function scheduleRPCReconnect() {
+    if (rpcReconnectTimeout) return;
+    log("RPC retry scheduled in 15s...");
+    rpcReconnectTimeout = setTimeout(() => {
+        rpcReconnectTimeout = null;
+        if (currentClientId && currentCode) startRPC(currentClientId, currentCode);
+    }, 15000);
+}
+
+// --- Rate Limiting ---
+function updateActivity(d) {
+    const now = Date.now();
+    updateHistory = updateHistory.filter(t => now - t < WINDOW_MS);
+    if (updateHistory.length < MAX_UPDATES) {
+        if (!rpcClient || state.rpc !== "Connected") return;
+        rpcClient.setActivity({
+            details: d.details, state: d.state,
+            largeImageKey: d.largeImageKey, smallImageKey: d.smallImageKey, smallImageText: d.smallImageText,
+            startTimestamp: d.startTimestamp || null, endTimestamp: d.endTimestamp || null,
+            type: 2, instance: false
+        }).catch(() => {});
+        updateHistory.push(now);
+    } else {
+        pendingActivity = d;
+        if (!rpcUpdateTimeout) {
+            rpcUpdateTimeout = setTimeout(() => {
+                rpcUpdateTimeout = null;
+                if (pendingActivity) { updateActivity(pendingActivity); pendingActivity = null; }
+            }, 1000);
+        }
+    }
+}
+
+// --- Main ---
+async function main() {
+    log(`--- V69 START ---`);
+    await initTray();
+    let settings = { code: null };
+    try { if (fs.existsSync(settingsFile)) settings = JSON.parse(fs.readFileSync(settingsFile, "utf8")); } catch (e) {}
+    
+    while (true) {
+        if (!settings.code || !/^\d{6}$/.test(settings.code)) {
+            const title = "T_Music_Bot Setup";
+            const psCmd = `powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName Microsoft.VisualBasic; $nl = [Environment]::NewLine; $msg = 'Instructions:' + $nl + '1. Open T_Music_Bot App' + $nl + '2. Settings > Discord RPC' + $nl + '3. Copy the 6-digit code' + $nl + $nl + 'Enter Pairing Code:'; $res = [Microsoft.VisualBasic.Interaction]::InputBox($msg, '${title}'); if ($?) { Write-Output $res } else { Write-Output 'CANCELLED' }"`;
+            const input = await new Promise(r => { exec(psCmd, { windowsHide: true }, (err, stdout) => r(stdout ? stdout.trim() : null)); });
+            if (!input || input === "CANCELLED") process.exit(0);
+            if (!/^\d{6}$/.test(input)) continue;
+            settings.code = input;
+            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+        }
+        const result = await connectAndAuth(settings.code);
+        if (result === "AUTH_SUCCESS") {
+            while (state.ws === "Connected") await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 5000));
+        } else if (result === "AUTH_FAILED") { settings.code = null; } else { await new Promise(r => setTimeout(r, 10000)); }
+    }
+}
+
+function connectAndAuth(code) {
+    return new Promise((resolve) => {
+        log(`WS Connecting...`);
+        state.ws = "Connecting...";
+        updateTray();
+        if (wsClient) { try { wsClient.terminate(); } catch(e){} }
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        wsClient = new WebSocket(WS_URL, { headers: { 'User-Agent': 'Mozilla/5.0', 'Origin': 'https://rpc.tehcraft.xyz' } });
+        let authenticated = false;
+        let timeout = setTimeout(() => { if (wsClient) wsClient.terminate(); resolve("ERR"); }, 20000);
+        wsClient.on('open', () => {
+            log("WS Connected.");
+            state.ws = "Connected";
+            updateTray();
+            wsClient.send(JSON.stringify({ type: "connect" }));
+            heartbeatInterval = setInterval(() => { if (wsClient.readyState === WebSocket.OPEN) wsClient.ping(); }, 30000);
+        });
+        wsClient.on('message', (data) => {
+            try {
+                const m = JSON.parse(data);
+                if (m.type === "connect") startRPC(m.clientId, code);
+                if (m.type === "authenticated") { authenticated = true; clearTimeout(timeout); resolve("AUTH_SUCCESS"); }
+                if (m.type === "rpc_update") updateActivity(m.data);
+                if (m.type === "error" && m.message.includes("pairing code")) { clearTimeout(timeout); resolve("AUTH_FAILED"); }
+            } catch (e) {}
+        });
+        wsClient.on('close', () => { state.ws = "Disconnected"; updateTray(); destroyRPC(); if (heartbeatInterval) clearInterval(heartbeatInterval); clearTimeout(timeout); if (!authenticated) resolve("ERR"); });
+        wsClient.on('error', () => { clearTimeout(timeout); if (!authenticated) resolve("ERR"); });
+    });
+}
+
+process.on('exit', () => { if (tray) tray.kill(false); });
+main();
