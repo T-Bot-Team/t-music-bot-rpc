@@ -1,298 +1,359 @@
-// --- Globals (Absolute Top) ---
-var wsClient = null;
-var rpcClient = null;
-var tray = null;
-var trayReady = false;
-var state = { ws: "Disconnected", rpc: "Disconnected" };
-var lastTrayState = "";
-var currentClientId = null;
-var currentCode = null;
-var rpcReconnectTimeout = null;
-var trayUpdateTimeout = null;
-var isConnectingRPC = false;
-var heartbeatInterval = null;
-
-// Version
-let APP_VERSION = "v1.0.0";
-try { 
-    APP_VERSION = `v${require('./package.json').version}`; 
-} catch (e) {}
-
-// RPC Rate Limiting
-var updateHistory = [];
-var pendingActivity = null;
-var rpcUpdateTimeout = null;
-const MAX_UPDATES = 5;
-const WINDOW_MS = 20500;
-
 const RPC = require("@t_bot-team/discord-rpc");
 const WebSocket = require("ws");
-const SysTray = require("systray2").default;
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { exec } = require("child_process");
+const { spawn, exec } = require("child_process");
+const readline = require("readline");
 
-// --- Configuration ---
-const WS_URL = "wss://rpc.tehcraft.xyz/ws";
+// --- Globals ---
+var wsClient = null;
+var rpcClient = null;
+var tray = null;
+var state = { ws: "Disconnected", rpc: "Disconnected" };
+var lastActivityData = null;
+var activityTimeout = null;
+var isQuiet = process.argv.includes("--quiet") || process.argv.includes("-q");
+
+// Version
+let APP_VERSION = "v1.0.0";
+try { APP_VERSION = `v${require("./package.json").version}`; } catch (e) {}
+
+// Config
 const isPkg = !!process.pkg;
 const root = isPkg ? path.dirname(process.execPath) : __dirname;
 const settingsFile = path.join(root, "settings.json");
 const logFile = path.join(root, "logs.txt");
 
-// Extraction folder for assets (Matches systray2 internal logic)
-const baseTempDir = path.join(os.tmpdir(), "tmusic_rpc_v69");
-const binsTempDir = path.join(baseTempDir, "2.1.4"); // Explicit version for systray2
-if (!fs.existsSync(binsTempDir)) fs.mkdirSync(binsTempDir, { recursive: true });
-
-const binName = ({ 
-    win32: "tray_windows_release.exe", 
-    darwin: "tray_darwin_release", 
-    linux: "tray_linux_release" 
-})[process.platform];
-
-const runtimeIconIco = path.resolve(path.join(baseTempDir, "icon.ico"));
-const runtimeIconPng = path.resolve(path.join(baseTempDir, "icon.png"));
-const runtimeBin = path.resolve(path.join(binsTempDir, binName));
-
-const activeIcon = process.platform === 'win32' ? runtimeIconIco : runtimeIconPng;
-
-function log(m) {
-    const msg = `[${new Date().toLocaleTimeString()}] ${m}`;
-    console.log(msg);
-    try { fs.appendFileSync(logFile, msg + "\n"); } catch (e) {}
+function log(m, force = false) {
+  if (isQuiet && !force) return;
+  const msg = `[${new Date().toLocaleTimeString()}] ${m}`;
+  console.log(msg);
+  try {
+    fs.appendFileSync(logFile, msg + os.EOL);
+  } catch (e) {}
 }
 
-// --- Aggressive Console Hiding (Windows) ---
-if (process.platform === 'win32' && isPkg) {
-    const hide = () => {
-        const cmd = `powershell -NoProfile -Command "Add-Type -Name Win -Namespace Win -MemberDefinition '[DllImport(\\"kernel32.dll\\")] public static extern IntPtr GetConsoleWindow(); [DllImport(\\"user32.dll\\")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);'; $h = [Win.Win]::GetConsoleWindow(); if ($h -ne [IntPtr]::Zero) { [Win.Win]::ShowWindow($h, 0) }"`;
-        exec(cmd, { windowsHide: true });
-    };
-    hide();
-    setTimeout(hide, 1000);
-    setTimeout(hide, 2000);
-}
+async function updateActivity(data) {
+  if (!rpcClient || state.rpc !== "Connected") return;
+  
+  const activity = { ...data, type: 2, instance: false };
+  const activityStr = JSON.stringify(activity);
+  if (lastActivityData === activityStr) return;
 
-function extractAssets() {
-    try {
-        // Extract Icons
-        const icoPath = path.join(__dirname, "icon.ico");
-        if (fs.existsSync(icoPath)) fs.writeFileSync(runtimeIconIco, fs.readFileSync(icoPath));
-        const pngPath = path.join(__dirname, "icon.png");
-        if (fs.existsSync(pngPath)) fs.writeFileSync(runtimeIconPng, fs.readFileSync(pngPath));
-        
-        // Extract Binary to EXACT path systray2 expects to fix EACCES
-        const binPath = path.join(__dirname, "node_modules/systray2/traybin", binName);
-        if (fs.existsSync(binPath)) {
-            fs.writeFileSync(runtimeBin, fs.readFileSync(binPath));
-            if (process.platform !== 'win32') fs.chmodSync(runtimeBin, 0o755);
-            log(`Binary prepared at: ${runtimeBin}`);
-        }
-    } catch (e) { log(`Extraction Error: ${e.message}`); }
-}
-
-// --- Tray Logic ---
-function getMenu() {
-    return {
-        icon: activeIcon,
-        title: "T_Music_Bot",
-        tooltip: "T_Music_Bot RPC",
-        items: [
-            { title: `T_Music_Bot ${APP_VERSION}`, enabled: false, __id: 1 },
-            { title: "<SEPARATOR>", enabled: true, __id: 2 },
-            { title: `WS: ${state.ws}`, enabled: false, __id: 3 },
-            { title: `RPC: ${state.rpc}`, enabled: false, __id: 4 },
-            { title: "<SEPARATOR>", enabled: true, __id: 5 },
-            { title: "Open Logs", enabled: true, __id: 6 },
-            { title: "Quit", enabled: true, __id: 7 }
-        ]
-    };
-}
-
-function updateTray() {
-    if (!tray || !trayReady) return;
-    const currentStateStr = `${state.ws}|${state.rpc}`;
-    if (currentStateStr === lastTrayState) return;
-    
-    if (trayUpdateTimeout) return;
-    trayUpdateTimeout = setTimeout(() => {
-        trayUpdateTimeout = null;
-        lastTrayState = currentStateStr;
-        try {
-            // Full Redraw method confirmed visually working
-            tray.sendAction({ type: "update-menu", menu: getMenu() });
-            log(`Tray visually updated: WS=${state.ws} | RPC=${state.rpc}`);
-        } catch (e) { log(`Tray Sync Fail: ${e.message}`); }
-    }, 200);
-}
-
-async function initTray() {
-    log("Initializing Tray...");
-    extractAssets();
-    await new Promise(r => setTimeout(r, 1000));
-
-    try {
-        tray = new SysTray({
-            menu: getMenu(),
-            debug: false,
-            copyDir: baseTempDir // Matches manual extraction path
-        });
-        await tray.ready();
-        trayReady = true;
-        log("Tray is fully ready.");
-        updateTray();
-        tray.onClick(action => {
-            if (action.item.title === "Quit") process.exit(0);
-            if (action.item.title === "Open Logs") {
-                const cmd = process.platform === 'win32' ? `start "" "${logFile}"` : `xdg-open "${logFile}"`;
-                exec(cmd, { windowsHide: true });
-            }
-        });
-    } catch (e) { log(`Tray Init Error: ${e.message}`); }
-}
-
-// --- Discord RPC ---
-async function destroyRPC() {
-    if (rpcReconnectTimeout) clearTimeout(rpcReconnectTimeout);
-    if (rpcClient) {
-        log("Cleaning up Discord RPC...");
-        const client = rpcClient;
-        rpcClient = null;
-        try { client.removeAllListeners(); await client.destroy(); } catch (e) {}
-    }
-    if (state.rpc !== "Disconnected") {
-        state.rpc = "Disconnected";
-        updateTray();
-    }
-}
-
-async function startRPC(clientId, code) {
-    if (isConnectingRPC) return;
-    isConnectingRPC = true;
-    currentClientId = clientId;
-    currentCode = code;
-    
-    await destroyRPC();
-    await new Promise(r => setTimeout(r, 2000)); // OS Pipe Cooldown
-
-    log(`Connecting Discord...`);
-    state.rpc = "Connecting...";
-    updateTray();
-
-    rpcClient = new RPC.Client({ transport: "ipc" });
-    rpcClient.on('ready', () => {
-        log("Discord RPC Ready.");
-        state.rpc = "Connected";
-        updateTray();
-        isConnectingRPC = false;
-        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-            wsClient.send(JSON.stringify({ type: "auth", userId: rpcClient.user.id, code: code }));
-            wsClient.send(JSON.stringify({ type: "request_update", userId: rpcClient.user.id }));
-        }
-    });
-    rpcClient.on('disconnected', () => {
-        log("Discord RPC Lost.");
-        destroyRPC();
-        scheduleRPCReconnect();
-    });
-    rpcClient.login({ clientId }).catch(e => {
-        log(`Discord Fail: ${e.message}`);
-        state.rpc = "Discord Not Found";
-        updateTray();
-        isConnectingRPC = false;
-        scheduleRPCReconnect();
-    });
-}
-
-function scheduleRPCReconnect() {
-    if (rpcReconnectTimeout) return;
-    log("RPC retry scheduled in 15s...");
-    rpcReconnectTimeout = setTimeout(() => {
-        rpcReconnectTimeout = null;
-        if (currentClientId && currentCode) startRPC(currentClientId, currentCode);
-    }, 15000);
-}
-
-// --- Rate Limiting ---
-function updateActivity(d) {
-    const now = Date.now();
-    updateHistory = updateHistory.filter(t => now - t < WINDOW_MS);
-    if (updateHistory.length < MAX_UPDATES) {
-        if (!rpcClient || state.rpc !== "Connected") return;
-        rpcClient.setActivity({
-            details: d.details, state: d.state,
-            largeImageKey: d.largeImageKey, smallImageKey: d.smallImageKey, smallImageText: d.smallImageText,
-            startTimestamp: d.startTimestamp || null, endTimestamp: d.endTimestamp || null,
-            type: 2, instance: false
-        }).catch(() => {});
-        updateHistory.push(now);
+  if (activityTimeout) clearTimeout(activityTimeout);
+  
+  try {
+    await rpcClient.setActivity(activity);
+    lastActivityData = activityStr;
+  } catch (err) {
+    const errM = err.message.toLowerCase();
+    if (errM.includes("rate limit") || errM.includes("cooldown")) {
+      log("RPC Cooldown - Retrying in 15s...");
+      activityTimeout = setTimeout(() => updateActivity(data), 15000);
     } else {
-        pendingActivity = d;
-        if (!rpcUpdateTimeout) {
-            rpcUpdateTimeout = setTimeout(() => {
-                rpcUpdateTimeout = null;
-                if (pendingActivity) { updateActivity(pendingActivity); pendingActivity = null; }
-            }, 1000);
-        }
+      log(`RPC Update Error: ${err.message}`);
     }
+  }
 }
 
-// --- Main ---
-async function main() {
-    log(`--- V69 START ---`);
-    await initTray();
-    let settings = { code: null };
-    try { if (fs.existsSync(settingsFile)) settings = JSON.parse(fs.readFileSync(settingsFile, "utf8")); } catch (e) {}
-    
-    while (true) {
-        if (!settings.code || !/^\d{6}$/.test(settings.code)) {
-            const title = "T_Music_Bot Setup";
-            const psCmd = `powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName Microsoft.VisualBasic; $nl = [Environment]::NewLine; $msg = 'Instructions:' + $nl + '1. Open T_Music_Bot App' + $nl + '2. Settings > Discord RPC' + $nl + '3. Copy the 6-digit code' + $nl + $nl + 'Enter Pairing Code:'; $res = [Microsoft.VisualBasic.Interaction]::InputBox($msg, '${title}'); if ($?) { Write-Output $res } else { Write-Output 'CANCELLED' }"`;
-            const input = await new Promise(r => { exec(psCmd, { windowsHide: true }, (err, stdout) => r(stdout ? stdout.trim() : null)); });
-            if (!input || input === "CANCELLED") process.exit(0);
-            if (!/^\d{6}$/.test(input)) continue;
-            settings.code = input;
-            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-        }
-        const result = await connectAndAuth(settings.code);
-        if (result === "AUTH_SUCCESS") {
-            while (state.ws === "Connected") await new Promise(r => setTimeout(r, 2000));
-            await new Promise(r => setTimeout(r, 5000));
-        } else if (result === "AUTH_FAILED") { settings.code = null; } else { await new Promise(r => setTimeout(r, 10000)); }
-    }
-}
+// --- Tray Controller ---
+class TrayController {
+  constructor(menu) {
+    this.menu = menu;
+    this.process = null;
+    this.ready = false;
+    this._readyPromise = null;
+    this._resolveReady = null;
+  }
 
-function connectAndAuth(code) {
-    return new Promise((resolve) => {
-        log(`WS Connecting...`);
-        state.ws = "Connecting...";
-        updateTray();
-        if (wsClient) { try { wsClient.terminate(); } catch(e){} }
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        wsClient = new WebSocket(WS_URL, { headers: { 'User-Agent': 'Mozilla/5.0', 'Origin': 'https://rpc.tehcraft.xyz' } });
-        let authenticated = false;
-        let timeout = setTimeout(() => { if (wsClient) wsClient.terminate(); resolve("ERR"); }, 20000);
-        wsClient.on('open', () => {
-            log("WS Connected.");
-            state.ws = "Connected";
-            updateTray();
-            wsClient.send(JSON.stringify({ type: "connect" }));
-            heartbeatInterval = setInterval(() => { if (wsClient.readyState === WebSocket.OPEN) wsClient.ping(); }, 30000);
-        });
-        wsClient.on('message', (data) => {
-            try {
-                const m = JSON.parse(data);
-                if (m.type === "connect") startRPC(m.clientId, code);
-                if (m.type === "authenticated") { authenticated = true; clearTimeout(timeout); resolve("AUTH_SUCCESS"); }
-                if (m.type === "rpc_update") updateActivity(m.data);
-                if (m.type === "error" && m.message.includes("pairing code")) { clearTimeout(timeout); resolve("AUTH_FAILED"); }
-            } catch (e) {}
-        });
-        wsClient.on('close', () => { state.ws = "Disconnected"; updateTray(); destroyRPC(); if (heartbeatInterval) clearInterval(heartbeatInterval); clearTimeout(timeout); if (!authenticated) resolve("ERR"); });
-        wsClient.on('error', () => { clearTimeout(timeout); if (!authenticated) resolve("ERR"); });
+  async init() {
+    this._readyPromise = new Promise((resolve) => {
+      this._resolveReady = resolve;
     });
+    const binName = process.platform === "win32" ? "tray_windows_release.exe" : "tray_linux_release";
+    const dstName = process.platform === "win32" ? "T_Music_Bot-RPC.exe" : "T_Music_Bot RPC";
+    const tempDir = path.join(os.tmpdir(), "t-music-bot-rpc");
+
+    try {
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+      const binPath = path.resolve(path.join(tempDir, dstName));
+      const iconPath = path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png");
+
+      const binSrc = path.join(__dirname, "node_modules", "systray2", "traybin", binName);
+
+      if (fs.existsSync(binSrc) && !fs.existsSync(binPath)) {
+        fs.writeFileSync(binPath, fs.readFileSync(binSrc));
+        if (process.platform !== "win32") fs.chmodSync(binPath, 0o755);
+      }
+
+      if (!fs.existsSync(binPath)) {
+        this._resolveReady(false);
+        return;
+      }
+
+      if (fs.existsSync(iconPath)) {
+        this.menu.icon = fs.readFileSync(iconPath).toString("base64");
+      }
+
+      this.process = spawn(binPath, [], { windowsHide: true });
+
+      this.process.on("error", () => this._resolveReady(false));
+
+      const rl = readline.createInterface({ input: this.process.stdout });
+      rl.on("line", (line) => {
+        try {
+          const action = JSON.parse(line);
+          if (action.type === "ready") {
+            this.ready = true;
+            this.sendAction({ type: "initial", ...this.menu });
+            this._resolveReady(true);
+          } else if (action.type === "clicked") {
+            this.handleBoxClick(action.item);
+          }
+        } catch (e) {}
+      });
+
+      this.process.stderr.on("data", (d) => {
+        if (d.toString().includes("libgtk")) log("Missing Linux tray dependencies: libgtk-3-0", true);
+      });
+      
+      this.process.on("exit", () => {
+        this.ready = false;
+        this._resolveReady(false);
+        rl.close();
+      });
+    } catch (e) {
+      this._resolveReady(false);
+    }
+    return this._readyPromise;
+  }
+
+  sendAction(action) {
+    if (this.process && this.process.stdin.writable) {
+      this.process.stdin.write(JSON.stringify(action) + "\n");
+    }
+  }
+
+  updateStatus(ws, rpc) {
+    if (!this.ready) return;
+    this.sendAction({
+      type: "update-item",
+      item: { title: `WS: ${ws} `, enabled: false, __id: 1 },
+      seq_id: 0,
+    });
+    this.sendAction({
+      type: "update-item",
+      item: { title: `RPC: ${rpc} `, enabled: false, __id: 2 },
+      seq_id: 1,
+    });
+  }
+
+  handleBoxClick(item) {
+    if (item.title === "Quit") process.exit(0);
+    if (item.title === "Open Logs") {
+      const cmd =
+        process.platform === "win32"
+          ? `start "" "${logFile}"`
+          : `xdg-open "${logFile}"`;
+      exec(cmd);
+    }
+  }
+
+  kill() {
+    if (this.process) this.process.kill();
+  }
 }
 
-process.on('exit', () => { if (tray) tray.kill(false); });
+async function getPairingCode() {
+  const title = "T_Music_Bot RPC Setup";
+  const msg = "1. Go to Discord and run /rpc connect\n2. Copy the pairing code from the bot";
+
+  if (process.platform === "win32") {
+    const psMsgParts = msg.split("\n").map(line => `'${line}'`).join(" + [char]13 + [char]10 + ");
+    // One-liner PowerShell command with added labels and adjusted positioning
+    const psCmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; [Windows.Forms.Application]::EnableVisualStyles(); $f=New-Object Windows.Forms.Form; $f.Text='${title}'; $f.Size=New-Object Drawing.Size(420,300); $f.StartPosition='CenterScreen'; $f.FormBorderStyle='FixedDialog'; $f.Topmost=$true; $f.MaximizeBox=$false; $f.MinimizeBox=$false; $f.Font=New-Object Drawing.Font('Segoe UI', 10); $l1=New-Object Windows.Forms.Label; $l1.Text='Instructions:'; $l1.Font=New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold); $l1.Size=New-Object Drawing.Size(380,20); $l1.Location=New-Object Drawing.Point(20,20); $l2=New-Object Windows.Forms.Label; $l2.Text=(${psMsgParts}); $l2.Size=New-Object Drawing.Size(380,50); $l2.Location=New-Object Drawing.Point(20,45); $l3=New-Object Windows.Forms.Label; $l3.Text='Enter Code:'; $l3.Font=New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold); $l3.Size=New-Object Drawing.Size(380,20); $l3.Location=New-Object Drawing.Point(20,105); $t=New-Object Windows.Forms.TextBox; $t.Location=New-Object Drawing.Point(22,130); $t.Size=New-Object Drawing.Size(360,25); $btnOk=New-Object Windows.Forms.Button; $btnOk.Text='Connect'; $btnOk.Size=New-Object Drawing.Size(95,32); $btnOk.Location=New-Object Drawing.Point(195,190); $btnOk.DialogResult=1; $btnOk.FlatStyle='System'; $btnCan=New-Object Windows.Forms.Button; $btnCan.Text='Cancel'; $btnCan.Size=New-Object Drawing.Size(95,32); $btnCan.Location=New-Object Drawing.Point(300,190); $btnCan.DialogResult=2; $btnCan.FlatStyle='System'; $f.AcceptButton=$btnOk; $f.CancelButton=$btnCan; $f.Controls.AddRange(@($l1,$l2,$l3,$t,$btnOk,$btnCan)); $f.Activate(); if($f.ShowDialog()-eq1){$t.Text}else{'CANCELLED'}"`;
+    
+    return await new Promise((r) => {
+      exec(psCmd, { windowsHide: true }, (err, out) => {
+        if (err || !out) {
+          const fallbackMsg = `Instructions: ${msg.replace(/\n/g, " ")} | Enter Code:`;
+          const fallback = `powershell -NoProfile -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::InputBox('${fallbackMsg}', '${title}')"`;
+          exec(fallback, { windowsHide: true }, (err2, out2) => r(out2 ? out2.trim() : "CANCELLED"));
+        } else {
+          r(out.trim());
+        }
+      });
+    });
+  } else {
+    // Linux: Try zenity first, then fallback to terminal
+    return await new Promise((r) => {
+      const zenityMsg = `Instructions:\\n${msg.replace(/\n/g, "\\n")}\\n\\nEnter Code:`;
+      exec(`zenity --entry --title="${title}" --text="${zenityMsg}" --width=400`, (err, out) => {
+        if (!err && out) return r(out.trim());
+        console.log(`\n=== ${title} ===\nInstructions:\n${msg}\n\nEnter Code:`);
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        rl.question("> ", (ans) => { rl.close(); r(ans.trim()); });
+      });
+    });
+  }
+}
+
+// --- App Logic ---
+async function main() {
+  log("=== V77 START ===");
+
+  if (process.platform === "win32" && isPkg) {
+    exec(
+      `powershell -NoProfile -Command "Add-Type -Name Win -Namespace Win -MemberDefinition '[DllImport(\\"kernel32.dll\\")] public static extern IntPtr GetConsoleWindow(); [DllImport(\\"user32.dll\\")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);'; [Win.Window]::ShowWindow([Win.Window]::GetConsoleWindow(), 0)"`,
+      { windowsHide: true },
+    );
+  }
+
+  const isLinux = process.platform === "linux";
+  const titleText = isLinux ? "T__Music__Bot" : "T_Music_Bot";
+  tray = new TrayController({
+    title: titleText,
+    tooltip: isLinux ? "T__Music__Bot RPC" : "T_Music_Bot RPC",
+    items: [
+      { title: "WS: Disconnected", enabled: false, __id: 1 },
+      { title: "RPC: Disconnected", enabled: false, __id: 2 },
+      { title: "Open Logs", enabled: true, __id: 3 },
+      { title: "Quit", enabled: true, __id: 4 },
+      { title: `${titleText} ${APP_VERSION}`, enabled: false, __id: 5 },
+    ],
+  });
+  await tray.init();
+
+  let settings = { code: null, userId: "" };
+
+  try {
+    if (fs.existsSync(settingsFile)) {
+      const data = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+      settings = { ...settings, ...data };
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+    } else {
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+    }
+  } catch (e) {
+    log(`Settings Load Error: ${e.message}`);
+  }
+
+  while (true) {
+    try {
+      if (fs.existsSync(settingsFile)) {
+        const data = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+        if (data && typeof data === "object") settings = { ...settings, ...data };
+      }
+    } catch (e) {}
+
+    if (!settings.code || !/^\d{6}$/.test(settings.code)) {
+      const input = await getPairingCode();
+      if (!input || input === "CANCELLED") process.exit(0);
+      if (!/^\d{6}$/.test(input)) { 
+        log("Invalid code."); 
+        continue; 
+      }
+      settings.code = input;
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+    }
+
+    const result = await connect(settings.code, settings);
+    if (!result.success) {
+      if (result.clearCode) {
+        settings.code = null;
+        try { fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); } catch (e) {}
+        await new Promise((r) => setTimeout(r, 500));
+      } else {
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+    } else {
+      // Wait for disconnection without polling
+      await new Promise((r) => {
+        if (state.ws !== "Connected") return r();
+        wsClient.once("close", r);
+      });
+    }
+  }
+}
+
+const WS_URL = "wss://rpc.tehcraft.xyz/ws";
+function connect(code, settings) {
+  return new Promise((resolve) => {
+    if (wsClient) { try { wsClient.terminate(); } catch(e){} }
+    if (rpcClient) { try { rpcClient.destroy(); } catch(e){} }
+
+    state.ws = "Connecting...";
+    tray.updateStatus(state.ws, state.rpc);
+
+    try {
+      wsClient = new WebSocket(WS_URL, { headers: { "User-Agent": "Mozilla/5.0" } });
+    } catch (e) {
+      resolve({ success: false, clearCode: false });
+      return;
+    }
+
+    let timeout = setTimeout(() => {
+      if (wsClient) wsClient.terminate();
+      resolve({ success: false, clearCode: false });
+    }, 10000);
+
+    wsClient.on("open", () => {
+      state.ws = "Connected";
+      tray.updateStatus(state.ws, state.rpc);
+      wsClient.send(JSON.stringify({ type: "connect" }));
+    });
+
+    wsClient.on("message", (data) => {
+      try {
+        const m = JSON.parse(data);
+        if (m.type === "connect") {
+          rpcClient = new RPC.Client({ transport: "ipc" });
+          rpcClient.on("ready", () => {
+            log(`Discord Connected: ${rpcClient.user.username}`);
+            state.rpc = "Connected";
+            tray.updateStatus(state.ws, state.rpc);
+            const authId = settings.userId || rpcClient.user.id;
+            wsClient.send(JSON.stringify({ type: "auth", userId: authId, code: code }));
+            wsClient.send(JSON.stringify({ type: "request_update", userId: authId }));
+          });
+          rpcClient.login({ clientId: m.clientId }).catch(() => {
+            state.rpc = "Discord Not Found";
+            tray.updateStatus(state.ws, state.rpc);
+          });
+        }
+        if (m.type === "authenticated") {
+          log("Authenticated.");
+          clearTimeout(timeout);
+          resolve({ success: true });
+        }
+        if (m.type === "rpc_update" && rpcClient && state.rpc === "Connected") {
+          updateActivity(m.data);
+        }
+        if (m.type === "error") {
+          log(`Error: ${m.message}`);
+          if (m.message.toLowerCase().includes("code") || m.message.toLowerCase().includes("pairing")) {
+            clearTimeout(timeout);
+            resolve({ success: false, clearCode: true, message: m.message });
+          }
+        }
+      } catch (e) {}
+    });
+
+    wsClient.on("close", () => {
+      state.ws = "Disconnected";
+      state.rpc = "Disconnected";
+      tray.updateStatus(state.ws, state.rpc);
+      clearTimeout(timeout);
+      resolve({ success: false, clearCode: false });
+    });
+
+    wsClient.on("error", () => resolve({ success: false, clearCode: false }));
+  });
+}
+
+process.on("exit", () => {
+  if (tray) tray.kill();
+});
 main();

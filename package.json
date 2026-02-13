@@ -18,7 +18,8 @@
     "targets": [
       "node18-win-x64",
       "node18-linux-x64"
-    ]
+    ],
+    "icon": "icon.ico"
   },
   "dependencies": {
     "@t_bot-team/discord-rpc": "^4.0.5",
@@ -26,6 +27,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "pkg": "^5.8.1"
+    "pkg": "^5.8.1",
+    "rcedit": "^5.0.2"
   }
 }
