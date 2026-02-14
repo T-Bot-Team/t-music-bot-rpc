@@ -1,6 +1,6 @@
 {
   "name": "t-music-rpc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "T-Music RPC Client",
   "main": "index.js",
   "bin": "index.js",
