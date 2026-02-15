@@ -24,7 +24,9 @@ var isQuiet = process.argv.includes("--quiet") || process.argv.includes("-q");
 
 // Version
 let APP_VERSION = "v1.0.0";
-try { APP_VERSION = `v${require("./package.json").version}`; } catch (e) {}
+try {
+  APP_VERSION = `v${require("./package.json").version}`;
+} catch (e) {}
 
 // Config
 const isPkg = !!process.pkg;
@@ -40,11 +42,16 @@ function checkLock() {
       const pid = parseInt(fs.readFileSync(lockFile, "utf8"));
       if (!isNaN(pid)) {
         process.kill(pid, 0); // Throws error if process doesn't exist
-        log(`Another instance is already running (PID: ${pid}). Exiting.`, true);
+        log(
+          `Another instance is already running (PID: ${pid}). Exiting.`,
+          true,
+        );
         process.exit(1);
       }
     } catch (e) {
-      try { fs.unlinkSync(lockFile); } catch (e2) {}
+      try {
+        fs.unlinkSync(lockFile);
+      } catch (e2) {}
     }
   }
   fs.writeFileSync(lockFile, process.pid.toString());
@@ -64,26 +71,43 @@ function log(m, force = false) {
 }
 
 async function updateActivity(data) {
-  if (!rpcClient || state.rpc !== "Connected" || isShuttingDown) return;
+  if (!rpcClient || state.rpc !== "Connected" || isShuttingDown) {
+    // If we're not connected, we can't update.
+    // This is expected if the app is still starting up or Discord is closed.
+    return;
+  }
 
   const isClear = !data || Object.keys(data).length === 0;
-  
+
   // Helper to compare activities while ignoring minor timestamp jitters (< 2s)
   const isDuplicate = (a, b) => {
     if (!a || !b) return a === b;
-    const fields = ["details", "state", "largeImageKey", "largeImageText", "smallImageKey", "smallImageText"];
+    const fields = [
+      "details",
+      "state",
+      "largeImageKey",
+      "largeImageText",
+      "smallImageKey",
+      "smallImageText",
+    ];
     for (const f of fields) {
       if (a[f] !== b[f]) return false;
     }
-    if (Math.abs((a.startTimestamp || 0) - (b.startTimestamp || 0)) > 2000) return false;
-    if (Math.abs((a.endTimestamp || 0) - (b.endTimestamp || 0)) > 2000) return false;
+    if (Math.abs((a.startTimestamp || 0) - (b.startTimestamp || 0)) > 2000)
+      return false;
+    if (Math.abs((a.endTimestamp || 0) - (b.endTimestamp || 0)) > 2000)
+      return false;
     return true;
   };
 
   const activity = isClear ? null : { ...data, type: 2, instance: false };
-  
+
   // Check against last sent
-  const lastActivity = lastActivityData ? (lastActivityData === "CLEARED" ? null : JSON.parse(lastActivityData)) : undefined;
+  const lastActivity = lastActivityData
+    ? lastActivityData === "CLEARED"
+      ? null
+      : JSON.parse(lastActivityData)
+    : undefined;
   if (isDuplicate(activity, lastActivity)) {
     // If we are back to the current state, cancel any queued changes
     if (queuedData) {
@@ -97,7 +121,11 @@ async function updateActivity(data) {
   }
 
   // Check against queued
-  if (queuedData && isDuplicate(activity, { ...queuedData, type: 2, instance: false })) return;
+  if (
+    queuedData &&
+    isDuplicate(activity, { ...queuedData, type: 2, instance: false })
+  )
+    return;
 
   const now = Date.now();
   const elapsed = now - lastSuccessTime;
@@ -108,7 +136,9 @@ async function updateActivity(data) {
     if (activityTimeout) return;
 
     const waitTime = COOLDOWN_MS - elapsed;
-    log(`Rate limiting (${isClear ? "Clear" : (data.details || "Song")}) - Waiting ${Math.ceil(waitTime / 1000)}s...`);
+    log(
+      `Rate limiting (${isClear ? "Clear" : data.details || "Song"}) - Waiting ${Math.ceil(waitTime / 1000)}s...`,
+    );
     activityTimeout = setTimeout(() => {
       activityTimeout = null;
       const next = queuedData;
@@ -136,20 +166,58 @@ async function updateActivity(data) {
     } else {
       await rpcClient.setActivity(activity);
       log(`RPC Updated: ${data.details || "Untitled"}`);
-      // log(`[DEBUG] Payload: ${JSON.stringify(activity)}`); 
     }
   } catch (err) {
     const errM = err.message.toLowerCase();
-    log(`RPC Error: ${err.message}`);
-    lastActivityData = null; 
-    
+    log(`RPC Update Error: ${err.message}`);
+    lastActivityData = null;
+
     if (errM.includes("rate limit") || errM.includes("cooldown")) {
       lastSuccessTime = Date.now();
-      updateActivity(data); 
-    } else if (errM.includes("connection lost") || errM.includes("not connected")) {
+      // Retry after a bit longer
+      setTimeout(() => updateActivity(data), 5000);
+    } else if (
+      errM.includes("connection lost") ||
+      errM.includes("not connected") ||
+      errM.includes("rpc_connection_timeout")
+    ) {
       state.rpc = "Disconnected";
       tray.updateStatus(state.ws, state.rpc);
+      // Trigger a full reconnect by terminating the WS
+      if (wsClient) {
+        log("RPC error triggered WS termination.");
+        wsClient.terminate();
+      }
     }
+  }
+}
+
+async function destroyRPC() {
+  if (!rpcClient) return;
+  log("Destroying RPC Client...");
+  const client = rpcClient;
+  rpcClient = null; // Clear it immediately
+  try {
+    // If it's already disconnected, destroy() might still hang or throw
+    // We give it a short timeout to try and clean up gracefully
+    await Promise.race([
+      (async () => {
+        try {
+          await client.destroy();
+          log("RPC Client destroy() called successfully.");
+        } catch (e) {
+          log(`RPC Client destroy() error: ${e.message}`);
+        }
+      })(),
+      new Promise((r) =>
+        setTimeout(() => {
+          log("RPC Client destroy() timed out (2s).");
+          r();
+        }, 2000),
+      ),
+    ]);
+  } catch (e) {
+    log(`Fatal error during RPC destruction: ${e.message}`);
   }
 }
 
@@ -159,7 +227,7 @@ async function cleanup() {
   if (isShuttingDown) return;
   isShuttingDown = true;
   log("Shutting down...");
-  
+
   // Force exit fallback if cleanup hangs
   const forceExit = setTimeout(() => {
     log("Cleanup timeout - forcing exit.", true);
@@ -167,50 +235,56 @@ async function cleanup() {
   }, 10000); // Increased to 10s to allow for rate limit wait if needed
 
   if (activityTimeout) clearTimeout(activityTimeout);
-  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
-  
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+
   if (rpcClient) {
     try {
       // Check if we need to wait for rate limit to ensure clearActivity works
       const now = Date.now();
       const elapsed = now - lastSuccessTime;
       const COOLDOWN_MS = 15500;
-      
+
       if (elapsed < COOLDOWN_MS) {
         const waitTime = COOLDOWN_MS - elapsed;
-        log(`Rate limit active. Waiting ${Math.ceil(waitTime/1000)}s to clear RPC...`);
-        await new Promise(r => setTimeout(r, waitTime));
+        log(
+          `Rate limit active. Waiting ${Math.ceil(waitTime / 1000)}s to clear RPC...`,
+        );
+        await new Promise((r) => setTimeout(r, waitTime));
       }
 
       log("Clearing RPC activity...");
       // clearActivity() is the correct way to remove the presence entirely
       await rpcClient.clearActivity().catch(() => {});
-      
+
       // Wait for Discord to process the clear packet
-      await new Promise(r => setTimeout(r, 1500));
-      
-      log("Destroying RPC Client...");
-      await rpcClient.destroy().catch(() => {});
-      
-      // Fallback: Manually close transport if still alive
-      if (rpcClient.transport && rpcClient.transport.close) {
-        try { rpcClient.transport.close(); } catch(e){}
-      }
+      await new Promise((r) => setTimeout(r, 1500));
+
+      await destroyRPC();
     } catch (e) {
       log(`Cleanup RPC Error: ${e.message}`);
     }
   }
-  
+
   if (wsClient) {
-    try { wsClient.terminate(); } catch (e) {}
-  }
-  
-  if (tray) {
-    try { tray.kill(); } catch (e) {}
+    try {
+      log("Terminating WS client...");
+      wsClient.terminate();
+    } catch (e) {}
   }
 
-  try { if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile); } catch(e){}
-  
+  if (tray) {
+    try {
+      tray.kill();
+    } catch (e) {}
+  }
+
+  try {
+    if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+  } catch (e) {}
+
   log("Exit complete.", true);
   clearTimeout(forceExit);
   process.exit(0);
@@ -219,8 +293,14 @@ async function cleanup() {
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 process.on("SIGHUP", cleanup);
-process.on("uncaughtException", (e) => { log(`Uncaught Error: ${e.message}`); cleanup(); });
-process.on("unhandledRejection", (e) => { log(`Unhandled Rejection: ${e.message}`); cleanup(); });
+process.on("uncaughtException", (e) => {
+  log(`Uncaught Error: ${e.message}`);
+  cleanup();
+});
+process.on("unhandledRejection", (e) => {
+  log(`Unhandled Rejection: ${e.message}`);
+  cleanup();
+});
 
 // --- Tray Controller ---
 class TrayController {
@@ -236,17 +316,30 @@ class TrayController {
     this._readyPromise = new Promise((resolve) => {
       this._resolveReady = resolve;
     });
-    const binName = process.platform === "win32" ? "tray_windows_release.exe" : "tray_linux_release";
-    const dstName = process.platform === "win32" ? "T_Music_Bot-RPC.exe" : "T_Music_Bot RPC";
+    const binName =
+      process.platform === "win32"
+        ? "tray_windows_release.exe"
+        : "tray_linux_release";
+    const dstName =
+      process.platform === "win32" ? "T_Music_Bot-RPC.exe" : "T_Music_Bot RPC";
     const tempDir = path.join(os.tmpdir(), "t-music-bot-rpc");
 
     try {
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
       const binPath = path.resolve(path.join(tempDir, dstName));
-      const iconPath = path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png");
+      const iconPath = path.join(
+        __dirname,
+        process.platform === "win32" ? "icon.ico" : "icon.png",
+      );
 
-      const binSrc = path.join(__dirname, "node_modules", "systray2", "traybin", binName);
+      const binSrc = path.join(
+        __dirname,
+        "node_modules",
+        "systray2",
+        "traybin",
+        binName,
+      );
 
       if (fs.existsSync(binSrc) && !fs.existsSync(binPath)) {
         fs.writeFileSync(binPath, fs.readFileSync(binSrc));
@@ -281,9 +374,10 @@ class TrayController {
       });
 
       this.process.stderr.on("data", (d) => {
-        if (d.toString().includes("libgtk")) log("Missing Linux tray dependencies: libgtk-3-0", true);
+        if (d.toString().includes("libgtk"))
+          log("Missing Linux tray dependencies: libgtk-3-0", true);
       });
-      
+
       this.process.on("exit", () => {
         this.ready = false;
         this._resolveReady(false);
@@ -333,19 +427,25 @@ class TrayController {
 
 async function getPairingCode() {
   const title = "T_Music_Bot RPC Setup";
-  const msg = "1. Go to Discord and run /rpc connect\n2. Copy the pairing code from the bot";
+  const msg =
+    "1. Go to Discord and run /rpc connect\n2. Copy the pairing code from the bot";
 
   if (process.platform === "win32") {
-    const psMsgParts = msg.split("\n").map(line => `'${line}'`).join(" + [char]13 + [char]10 + ");
+    const psMsgParts = msg
+      .split("\n")
+      .map((line) => `'${line}'`)
+      .join(" + [char]13 + [char]10 + ");
     // One-liner PowerShell command with added labels and adjusted positioning
     const psCmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; [Windows.Forms.Application]::EnableVisualStyles(); $f=New-Object Windows.Forms.Form; $f.Text='${title}'; $f.Size=New-Object Drawing.Size(420,300); $f.StartPosition='CenterScreen'; $f.FormBorderStyle='FixedDialog'; $f.Topmost=$true; $f.MaximizeBox=$false; $f.MinimizeBox=$false; $f.Font=New-Object Drawing.Font('Segoe UI', 10); $l1=New-Object Windows.Forms.Label; $l1.Text='Instructions:'; $l1.Font=New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold); $l1.Size=New-Object Drawing.Size(380,20); $l1.Location=New-Object Drawing.Point(20,20); $l2=New-Object Windows.Forms.Label; $l2.Text=(${psMsgParts}); $l2.Size=New-Object Drawing.Size(380,50); $l2.Location=New-Object Drawing.Point(20,45); $l3=New-Object Windows.Forms.Label; $l3.Text='Enter Code:'; $l3.Font=New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold); $l3.Size=New-Object Drawing.Size(380,20); $l3.Location=New-Object Drawing.Point(20,105); $t=New-Object Windows.Forms.TextBox; $t.Location=New-Object Drawing.Point(22,130); $t.Size=New-Object Drawing.Size(360,25); $btnOk=New-Object Windows.Forms.Button; $btnOk.Text='Connect'; $btnOk.Size=New-Object Drawing.Size(95,32); $btnOk.Location=New-Object Drawing.Point(195,190); $btnOk.DialogResult=1; $btnOk.FlatStyle='System'; $btnCan=New-Object Windows.Forms.Button; $btnCan.Text='Cancel'; $btnCan.Size=New-Object Drawing.Size(95,32); $btnCan.Location=New-Object Drawing.Point(300,190); $btnCan.DialogResult=2; $btnCan.FlatStyle='System'; $f.AcceptButton=$btnOk; $f.CancelButton=$btnCan; $f.Controls.AddRange(@($l1,$l2,$l3,$t,$btnOk,$btnCan)); $f.Activate(); if($f.ShowDialog()-eq1){$t.Text}else{'CANCELLED'}"`;
-    
+
     return await new Promise((r) => {
       exec(psCmd, { windowsHide: true }, (err, out) => {
         if (err || !out) {
           const fallbackMsg = `Instructions: ${msg.replace(/\n/g, " ")} | Enter Code:`;
           const fallback = `powershell -NoProfile -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::InputBox('${fallbackMsg}', '${title}')"`;
-          exec(fallback, { windowsHide: true }, (err2, out2) => r(out2 ? out2.trim() : "CANCELLED"));
+          exec(fallback, { windowsHide: true }, (err2, out2) =>
+            r(out2 ? out2.trim() : "CANCELLED"),
+          );
         } else {
           r(out.trim());
         }
@@ -355,12 +455,23 @@ async function getPairingCode() {
     // Linux: Try zenity first, then fallback to terminal
     return await new Promise((r) => {
       const zenityMsg = `Instructions:\\n${msg.replace(/\n/g, "\\n")}\\n\\nEnter Code:`;
-      exec(`zenity --entry --title="${title}" --text="${zenityMsg}" --width=400`, (err, out) => {
-        if (!err && out) return r(out.trim());
-        console.log(`\n=== ${title} ===\nInstructions:\n${msg}\n\nEnter Code:`);
-        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-        rl.question("> ", (ans) => { rl.close(); r(ans.trim()); });
-      });
+      exec(
+        `zenity --entry --title="${title}" --text="${zenityMsg}" --width=400`,
+        (err, out) => {
+          if (!err && out) return r(out.trim());
+          console.log(
+            `\n=== ${title} ===\nInstructions:\n${msg}\n\nEnter Code:`,
+          );
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          });
+          rl.question("> ", (ans) => {
+            rl.close();
+            r(ans.trim());
+          });
+        },
+      );
     });
   }
 }
@@ -375,11 +486,15 @@ async function main() {
   if (isLinux && isPkg && !process.argv.includes("--foreground")) {
     try {
       const { spawn } = require("child_process");
-      const child = spawn(process.execPath, [...process.argv.slice(1), "--foreground"], {
-        detached: true,
-        stdio: 'ignore',
-        cwd: root
-      });
+      const child = spawn(
+        process.execPath,
+        [...process.argv.slice(1), "--foreground"],
+        {
+          detached: true,
+          stdio: "ignore",
+          cwd: root,
+        },
+      );
 
       child.unref();
       process.exit(0);
@@ -391,7 +506,7 @@ async function main() {
     try {
       process.stdin.unref();
       if (process.stdin.close) process.stdin.close();
-    } catch(e){}
+    } catch (e) {}
   }
 
   log("=== V77 START ===");
@@ -405,7 +520,7 @@ async function main() {
 
   const titleText = isLinux ? "T__Music__Bot" : "T_Music_Bot";
 
-    tray = new TrayController({
+  tray = new TrayController({
     title: titleText,
     tooltip: isLinux ? "T__Music__Bot RPC" : "T_Music_Bot RPC",
     items: [
@@ -434,91 +549,147 @@ async function main() {
   }
 
   while (true) {
+    log("Main loop: Starting iteration.");
     try {
       if (fs.existsSync(settingsFile)) {
-        settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
+        const raw = fs.readFileSync(settingsFile, "utf8");
+        settings = { ...settings, ...JSON.parse(raw) };
       }
-    } catch (e) {}
+    } catch (e) {
+      log(`Settings Read Error: ${e.message}`);
+    }
 
-    const result = await connect(settings.code, settings);
-    if (!result.success) {
-      if (result.clearCode) {
-        settings.code = null;
-        try { fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); } catch (e) {}
+    try {
+      log("Main loop: Calling connect()...");
+      const result = await connect(settings.code, settings);
+      log(`Main loop: connect() returned success=${result.success}`);
+
+      if (!result.success) {
+        if (result.clearCode) {
+          log("Clearing pairing code due to server error.");
+          settings.code = null;
+          try {
+            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+          } catch (e) {}
+        }
+        state.ws = "Retrying...";
+        tray.updateStatus(state.ws, state.rpc);
+
+        log(
+          `Main loop: Waiting ${Math.ceil(retryDelay / 1000)}s before retry...`,
+        );
+        await new Promise((r) => setTimeout(r, retryDelay));
+        retryDelay = Math.min(retryDelay + 5000, 30000);
+      } else {
+        retryDelay = 5000; // Reset on success
+        // Wait for disconnection of the CURRENT client
+        const activeClient = wsClient;
+        log("Main loop: Waiting for WS disconnection...");
+        await new Promise((r) => {
+          if (!activeClient || activeClient.readyState !== WebSocket.OPEN) {
+            log("Main loop: WS already closed or closing.");
+            return r();
+          }
+
+          const pulse = setInterval(() => {
+            if (activeClient.readyState !== WebSocket.OPEN) {
+              log("Main loop pulse: WS no longer open.");
+              clearInterval(pulse);
+              r();
+            }
+          }, 10000);
+
+          activeClient.once("close", (code, reason) => {
+            clearInterval(pulse);
+            log(
+              `Main loop: WS closed (Code: ${code}${reason ? ", Reason: " + reason : ""}).`,
+            );
+            r();
+          });
+          activeClient.once("error", (err) => {
+            clearInterval(pulse);
+            log(`Main loop: WS error: ${err.message}`);
+            r();
+          });
+        });
+        log("Main loop: WS waiter resolved. Reconnecting...");
       }
-      state.ws = "Retrying...";
-      tray.updateStatus(state.ws, state.rpc);
-      
-      // Gradually increase retry delay up to 30s during persistent outages (like 530 errors)
-      await new Promise((r) => setTimeout(r, retryDelay));
-      retryDelay = Math.min(retryDelay + 5000, 30000);
-    } else {
-      retryDelay = 5000; // Reset on success
-      // Wait for disconnection of the CURRENT client
-      const activeClient = wsClient;
-      await new Promise((r) => {
-        if (!activeClient || activeClient.readyState !== WebSocket.OPEN) return r();
-        activeClient.once("close", () => {
-          log("Reconnection loop triggered by close.");
-          r();
-        });
-        activeClient.once("error", () => {
-          log("Reconnection loop triggered by error.");
-          r();
-        });
-      });
+    } catch (fatalError) {
+      log(`Critical Loop Error: ${fatalError.message}`);
+      // Sleep briefly to prevent CPU spinning if something is fundamentally broken
+      await new Promise((r) => setTimeout(r, 5000));
     }
   }
 }
 
 const WS_URL = "wss://rpc.tehcraft.xyz/ws";
+let loginTimeout = null;
+
 async function connect(code, settings) {
-  if (wsClient) { try { wsClient.terminate(); } catch(e){} }
-  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
-  
-  // Only destroy RPC if it's truly dead. If it's still "Connected", keep it to preserve activity.
-  if (rpcClient && state.rpc !== "Connected") { 
-    try { await rpcClient.destroy().catch(() => {}); } catch(e){} 
+  log("connect(): Start");
+  if (wsClient) {
+    log("connect(): Terminating existing WS client...");
+    try {
+      wsClient.terminate();
+    } catch (e) {}
   }
-  
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+  if (loginTimeout) {
+    clearTimeout(loginTimeout);
+    loginTimeout = null;
+  }
+
+  // Only destroy RPC if it's truly dead. If it's still "Connected", keep it to preserve activity.
+  if (rpcClient && state.rpc !== "Connected") {
+    log(`connect(): Destroying stale RPC client (State: ${state.rpc})...`);
+    await destroyRPC();
+  }
+
   return new Promise((resolve) => {
     let isResolved = false;
     const safeResolve = (val) => {
       if (isResolved) return;
       isResolved = true;
-      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+      log(`connect(): Resolving with success=${val.success}`);
+      if (heartbeatInterval && !val.success) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
       resolve(val);
     };
 
-    const now = Date.now();
-    if (now - lastConnectLogTime > 30000) {
-      log("Connecting to server...");
-      lastConnectLogTime = now;
-    }
+    log("Connecting to server...");
     state.ws = "Connecting...";
     tray.updateStatus(state.ws, state.rpc);
 
     try {
-      wsClient = new WebSocket(WS_URL, { 
-        headers: { 
+      wsClient = new WebSocket(WS_URL, {
+        headers: {
           "User-Agent": `T-Music-RPC/${APP_VERSION} (${os.platform()})`,
-          "Origin": "https://rpc.tehcraft.xyz"
-        } 
+          Origin: "https://rpc.tehcraft.xyz",
+        },
       });
     } catch (e) {
+      log(`connect(): WebSocket creation error: ${e.message}`);
       safeResolve({ success: false, clearCode: false });
       return;
     }
 
     let timeout = setTimeout(() => {
-      log("Connection timed out.");
+      log("connect(): Connection timed out.");
       if (wsClient) {
-        try { wsClient.terminate(); } catch(e){}
+        try {
+          wsClient.terminate();
+        } catch (e) {}
       }
       safeResolve({ success: false, clearCode: false });
     }, 15000);
 
     wsClient.on("open", () => {
+      log("connect(): WS opened.");
       state.ws = "Connected";
       tray.updateStatus(state.ws, state.rpc);
       wsClient.send(JSON.stringify({ type: "connect" }));
@@ -526,32 +697,22 @@ async function connect(code, settings) {
       // Setup Heartbeat
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       let lastActivity = Date.now();
-      
-      wsClient.on("pong", () => { lastActivity = Date.now(); });
-      wsClient.on("message", (raw) => { 
-        lastActivity = Date.now(); 
-        try {
-          const m = JSON.parse(raw.toString());
-          if (m.type === "rpc_update" || m.type === "authenticated") {
-            lastMessageTime = Date.now();
-          }
-        } catch(e) {
-          // Log malformed messages as they might indicate server-side issues
-          log(`Malformed server message: ${raw.toString().substring(0, 60)}...`);
-        }
+
+      wsClient.on("pong", () => {
+        lastActivity = Date.now();
       });
 
       heartbeatInterval = setInterval(() => {
         if (wsClient && wsClient.readyState === WebSocket.OPEN) {
           wsClient.ping();
-          
+
           // If no activity (pong or message) for 90s, the connection is a "zombie"
           if (Date.now() - lastActivity > 90000) {
             log("Connection idle for 90s - terminating zombie session.");
             wsClient.terminate();
           }
 
-          // If we haven't received a real RPC update or auth in 20 minutes, 
+          // If we haven't received a real RPC update or auth in 20 minutes,
           // the server might have forgotten about us or the socket is stale.
           if (Date.now() - lastMessageTime > 1200000) {
             log("No data received for 20m - refreshing connection.");
@@ -559,80 +720,166 @@ async function connect(code, settings) {
           }
         }
       }, 20000); // Check every 20s
-    });
 
-    wsClient.on("message", (raw) => {
-      try {
-        const m = JSON.parse(raw.toString());
+      wsClient.on("message", async (raw) => {
+        lastActivity = Date.now();
+        try {
+          const m = JSON.parse(raw.toString());
+          if (m.type === "rpc_update" || m.type === "authenticated") {
+            lastMessageTime = Date.now();
+          }
 
-        if (m.type === "connect") {
-          const setupWsAuth = async () => {
-            let currentCode = settings.code;
-            if (!currentCode || !/^\d{6}$/.test(currentCode)) {
-              if (isPrompting) return;
-              isPrompting = true;
-              currentCode = await getPairingCode();
-              isPrompting = false;
-              if (!currentCode || currentCode === "CANCELLED") { await cleanup(); return; }
-              settings.code = currentCode;
-              try { fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); } catch(e){}
-            }
-            const authId = settings.userId || rpcClient.user.id;
-            wsClient.send(JSON.stringify({ type: "auth", userId: authId, code: currentCode }));
-            
-            log("Sending update request.");
-            wsClient.send(JSON.stringify({ type: "request_update", userId: authId }));
-          };
+          if (m.type === "connect") {
+            const setupWsAuth = async () => {
+              let currentCode = settings.code;
+              if (!currentCode || !/^\d{6}$/.test(currentCode)) {
+                if (isPrompting) return;
+                isPrompting = true;
+                log("connect(): Prompting for pairing code...");
+                currentCode = await getPairingCode();
+                isPrompting = false;
+                if (!currentCode || currentCode === "CANCELLED") {
+                  log("connect(): Pairing cancelled.");
+                  await cleanup();
+                  return;
+                }
+                settings.code = currentCode;
+                try {
+                  fs.writeFileSync(
+                    settingsFile,
+                    JSON.stringify(settings, null, 2),
+                  );
+                } catch (e) {}
+              }
+              const authId =
+                settings.userId ||
+                (rpcClient && rpcClient.user ? rpcClient.user.id : null);
+              if (!authId && !settings.userId) {
+                log("Waiting for RPC client to get User ID...");
+                return setTimeout(setupWsAuth, 2000);
+              }
 
-          if (rpcClient && state.rpc === "Connected") {
-            if (Date.now() - lastReuseLogTime > 5000) {
-               log("Reusing existing Discord RPC connection.");
-               lastReuseLogTime = Date.now();
-            }
-            setupWsAuth();
-          } else {
-            if (rpcClient) { try { rpcClient.destroy(); } catch(e){} }
-            lastActivityData = null; 
-            rpcClient = new RPC.Client({ transport: "ipc" });
-            rpcClient.on("ready", () => {
-              log(`Discord Connected: ${rpcClient.user.username}`);
-              state.rpc = "Connected";
-              tray.updateStatus(state.ws, state.rpc);
-              setupWsAuth();
-            });
+              // Force a fresh sync by clearing local state
+              lastActivityData = null;
 
-            const tryLogin = () => {
-              if (!rpcClient || state.ws !== "Connected" || isShuttingDown) return;
-              rpcClient.login({ clientId: m.clientId }).catch(() => {
-                state.rpc = "Discord Not Found";
-                tray.updateStatus(state.ws, state.rpc);
-                setTimeout(tryLogin, 15000);
-              });
+              log(`Authenticating as ${authId}...`);
+              wsClient.send(
+                JSON.stringify({
+                  type: "auth",
+                  userId: authId,
+                  code: currentCode,
+                }),
+              );
             };
-            tryLogin();
+
+            if (rpcClient && state.rpc === "Connected") {
+              log("Reusing existing Discord RPC connection.");
+              setupWsAuth();
+            } else {
+              log("Initializing new Discord RPC client...");
+              if (rpcClient) {
+                await destroyRPC();
+              }
+              if (loginTimeout) {
+                clearTimeout(loginTimeout);
+                loginTimeout = null;
+              }
+
+              lastActivityData = null;
+              rpcClient = new RPC.Client({ transport: "ipc" });
+              rpcClient.on("ready", () => {
+                log(`Discord Connected: ${rpcClient.user.username}`);
+                state.rpc = "Connected";
+                tray.updateStatus(state.ws, state.rpc);
+                setupWsAuth();
+              });
+
+              rpcClient.on("disconnected", () => {
+                log("Discord RPC Disconnected.");
+                state.rpc = "Disconnected";
+                tray.updateStatus(state.ws, state.rpc);
+                // If RPC disconnects, we might want to refresh everything
+                if (wsClient) {
+                  log("RPC disconnect triggering WS termination.");
+                  wsClient.terminate();
+                }
+              });
+
+              rpcClient.on("error", (err) => {
+                log(`Discord RPC Error: ${err.message}`);
+                // Some errors might be fatal, others just transient
+                if (err.message.includes("connection lost")) {
+                  state.rpc = "Disconnected";
+                  tray.updateStatus(state.ws, state.rpc);
+                  if (wsClient) wsClient.terminate();
+                }
+              });
+
+              const tryLogin = () => {
+                if (loginTimeout) {
+                  clearTimeout(loginTimeout);
+                  loginTimeout = null;
+                }
+                if (!rpcClient || state.ws !== "Connected" || isShuttingDown) {
+                  log(
+                    "Aborting RPC login attempt (Client dead or WS disconnected).",
+                  );
+                  return;
+                }
+                log(`Attempting RPC login with Client ID: ${m.clientId}`);
+                rpcClient.login({ clientId: m.clientId }).catch((err) => {
+                  log(`RPC Login failed: ${err.message}`);
+                  state.rpc = "Discord Not Found";
+                  tray.updateStatus(state.ws, state.rpc);
+                  loginTimeout = setTimeout(tryLogin, 15000);
+                });
+              };
+              tryLogin();
+            }
           }
-        }
-        if (m.type === "authenticated") {
-          log("Authenticated.");
-          clearTimeout(timeout);
-          safeResolve({ success: true });
-        }
-        if (m.type === "rpc_update") {
-          if (rpcClient && state.rpc === "Connected") {
-            updateActivity(m.data);
-          } else {
-            const details = m.data?.details || "Clear Request";
-            log(`Ignored Update: ${details} (RPC: ${state.rpc})`);
-          }
-        }
-        if (m.type === "error") {
-          log(`Error: ${m.message}`);
-          if (m.message.toLowerCase().includes("code") || m.message.toLowerCase().includes("pairing")) {
+          if (m.type === "authenticated") {
+            log("Authenticated successfully.");
             clearTimeout(timeout);
-            safeResolve({ success: false, clearCode: true, message: m.message });
+
+            // Request update ONLY after successful authentication
+            const authId =
+              settings.userId ||
+              (rpcClient && rpcClient.user ? rpcClient.user.id : null);
+            if (authId) {
+              log("Requesting initial state update...");
+              wsClient.send(
+                JSON.stringify({ type: "request_update", userId: authId }),
+              );
+            }
+
+            safeResolve({ success: true });
           }
+          if (m.type === "rpc_update") {
+            if (rpcClient && state.rpc === "Connected") {
+              updateActivity(m.data);
+            } else {
+              const details = m.data?.details || "Clear Request";
+              log(`Ignored Update: ${details} (RPC: ${state.rpc})`);
+            }
+          }
+          if (m.type === "error") {
+            log(`Server Error: ${m.message}`);
+            if (
+              m.message.toLowerCase().includes("code") ||
+              m.message.toLowerCase().includes("pairing")
+            ) {
+              clearTimeout(timeout);
+              safeResolve({
+                success: false,
+                clearCode: true,
+                message: m.message,
+              });
+            }
+          }
+        } catch (e) {
+          log(`Error processing message: ${e.message}`);
         }
-      } catch (e) {} // Errors handled in the open listener's message handler
+      });
     });
 
     wsClient.on("close", (code, reason) => {
@@ -641,18 +888,24 @@ async function connect(code, settings) {
       state.ws = "Disconnected";
       tray.updateStatus(state.ws, state.rpc);
       clearTimeout(timeout);
-      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
       safeResolve({ success: false, clearCode: false });
     });
 
     wsClient.on("error", (err) => {
       if (err.message.includes("530")) {
-        log("WS Error: Server response 530 (Origin Unreachable). The Fastify server likely crashed.");
+        log("WS Error: Server response 530 (Origin Unreachable).");
       } else {
         log(`WS Error: ${err.message}`);
       }
       clearTimeout(timeout);
-      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
       safeResolve({ success: false, clearCode: false });
     });
   });
