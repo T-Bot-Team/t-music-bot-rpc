@@ -4,6 +4,7 @@
   "description": "T-Music RPC Client",
   "main": "index.js",
   "bin": "index.js",
+  "license": "CC-BY-NC-ND-4.0",
   "author": "TehPig",
   "scripts": {
     "start": "node index.js",
