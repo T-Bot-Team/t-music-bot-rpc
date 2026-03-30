@@ -1,0 +1,26 @@
+{
+  "code": "",
+  "userId": "",
+  "overlay": {
+    "enabled": false,
+    "port": 3000,
+    "visualizer": {
+      "enabled": false,
+      "audioDevice": "",
+      "fps": 60,
+      "sampleRate": 44100,
+      "samples": 4096,
+      "bars": 96,
+      "sensitivity": 40,
+      "multiplier": 40,
+      "smoothing": 3,
+      "barWidth": 10,
+      "barGap": 5,
+      "colorTop": "#7cf6ffff",
+      "colorBottom": "#1a69a8",
+      "mode": "classic",
+      "rounded": true,
+      "glow": false
+    }
+  }
+}
