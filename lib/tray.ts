@@ -43,7 +43,7 @@ export class TrayController {
     try {
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
       const binPath = path.resolve(path.join(tempDir, dstName));
-      const iconPath = path.join(PATHS.assets, "icon.ico");
+      const iconPath = path.join(PATHS.assets, IS_WIN ? "icon.ico" : "icon.png");
       const binSrc = path.join(PATHS.internal, "node_modules", "systray2", "traybin", binName);
 
       if (fs.existsSync(binSrc) && !fs.existsSync(binPath)) {
