@@ -30,39 +30,6 @@ Download the latest version for your operating system from the [Releases](https:
 
 ---
 
-## Command Line Options
-
-- `--list`: List all available audio output devices for the visualizer.
-- `--quiet` or `-q`: Disable most logging to console and `logs.txt`.
-- `--foreground`: (Linux only) Prevent the app from backgrounding itself.
-- `--debug-fft`: Enable detailed FFT analysis logging.
-
-## Building from Source
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18.16.0 or higher recommended)
-- `npm` (comes with Node.js)
-
-### Steps
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/TehPig/t-music-bot-rpc.git
-   cd t-music-bot-rpc
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Build the binaries:**
-   ```bash
-   npm run build    # Compiles TypeScript and prepares dist/ folder
-   npm run package  # Generates optimized, Brotli-compressed standalone binaries
-   ```
-
----
-
 ## Configuration Guide
 
 The `settings.json` file is generated automatically on the first run. Below are the available options and their valid ranges:
@@ -120,6 +87,41 @@ To use the overlay in OBS:
 2. URL: `http://localhost:3000` (port can be changed in settings).
 3. Width: `1360`
 4. Height: `440`
+
+---
+
+## Command Line Options
+
+- `--list`: List all available audio output devices for the visualizer.
+- `--quiet` or `-q`: Disable most logging to console and `logs.txt`.
+- `--foreground`: (Linux only) Prevent the app from backgrounding itself.
+- `--debug-fft`: Enable detailed FFT analysis logging.
+
+## Building from Source
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18.16.0 or higher recommended)
+- `npm` (comes with Node.js)
+
+### Steps
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/TehPig/t-music-bot-rpc.git
+   cd t-music-bot-rpc
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Build the binaries:**
+   ```bash
+   npm run build    # Compiles TypeScript and prepares dist/ folder
+   npm run package  # Generates optimized, Brotli-compressed standalone binaries
+   ```
+
+---
 
 ## License
 [CC BY-NC-ND 4.0](LICENSE)
