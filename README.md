@@ -1,44 +1,51 @@
-# T_Music_Bot RPC Client v1.1.0 (LTS)
+# T_Music_Bot RPC Client
 
-A high-performance, type-safe Discord Rich Presence client for T_Music_Bot featuring a low-latency OBS visualizer overlay. This version (v1.1.0) is the final Long Term Support release for the Node.js implementation.
+A high-performance, standalone Discord Rich Presence client and OBS overlay for T_Music_Bot. Designed for maximum visual quality with minimum resource footprint.
 
-## ✨ Key Features & Improvements
+## 🚀 Key Features
 
-### 🚀 Core Architecture
-- **Full TypeScript Migration:** The entire project has been rewritten in TypeScript, providing 100% logic stability and a robust blueprint for future native ports.
-- **Improved State Management:** Advanced detection for Paused, Streaming (LIVE), and Status (Resting) states to ensure accurate presence and overlay data.
-- **Enhanced Connection Logic:** Standardized headers and detailed handshaking diagnostics to ensure reliable connections when running as a standalone executable.
+### 🎧 Discord Rich Presence
+- **Dynamic Presence:** Shows exactly what you are listening to, including track title, artist, and playback status.
+- **Smart Auth:** Secure 6-digit pairing code authentication to link with your Discord account.
+- **State Logic:** Robust handling of Playing, Paused, and "Resting" (Status) states.
 
-### 🎨 Smart Thumbnail Engine
-- **MaxRes Upgrade:** Automatically upgrades YouTube thumbnails to **1280x720 (maxresdefault)** quality regardless of the source resolution.
-- **Smart Cropping:** Implements a CSS-based **12.5% Smart Crop** to remove legacy black bars from 4:3 thumbnails (SD/HQ), ensuring a clean 16:9 cinematic look.
-- **Instant Loading:** Optimized image handling with `eager` priority loading for immediate appearance on track changes.
+### 📺 OBS Visualizer Overlay
+- **Professional Layout:** High-resolution (1360x440) overlay designed for OBS browser sources.
+- **Audio-Responsive Visualizer:** Smooth, high-refresh-rate frequency bars (optimized for up to 240Hz).
+- **Customizable Modes:** Support for various modes including classic bars, wave, center-bars, and neon.
+- **Low Latency:** Real-time audio processing with dynamic hop-sizing to ensure zero delay between music and visuals.
 
-### 📺 High-Performance Visualizer
-- **Ultra-Low Latency:** Uses a **Dynamic Hop Size** that scales with your target FPS (supporting up to 240Hz monitors).
-- **"Catch-Up" Logic:** Aggressive buffer management prevents visualizer lag, ensuring the bars always sync perfectly with the audio.
-- **Strict UI Hard-Lock:** CSS-level overrides ensure the visualizer and live indicators are physically hidden when the player is paused or idle.
+### 🖼️ Smart Thumbnail Engine
+- **MaxRes Quality:** Automatically forces YouTube thumbnails to **1280x720 (maxresdefault)** for the sharpest possible look.
+- **Smart Crop (12.5% Rule):** Programmatically removes black bars from legacy 4:3 YouTube thumbnails, providing a clean 16:9 cinematic experience.
+- **Instant Loading:** Zero-delay image rendering ensures thumbnails appear the moment the track changes.
 
-### 📦 Optimized Distribution
-- **Auto-FFmpeg Setup:** Native system prompt detects missing FFmpeg and offers to download a minimal binary automatically—no manual installation required.
-- **Size Optimization:** Executable size reduced to **~40MB** using Brotli compression and surgical asset pruning.
-- **LTS Stability:** This branch is considered feature-complete and optimized for long-term use.
+### 🛠️ Intelligent System Integration
+- **Auto-FFmpeg Setup:** Detects if audio capture dependencies are missing and offers a native one-click automatic installation.
+- **System Tray Controller:** Runs in the background with a system tray icon showing real-time WebSocket and RPC connection status.
+- **Portable & Lean:** Standalone executable (~40MB) with no external dependencies required for the core RPC.
 
-## 🚀 Installation
-1. Download the latest `t-music-bot-rpc.exe` from the [Releases](https://github.com/TehPig/t-music-bot-rpc/releases) page.
-2. Run the executable.
-3. If FFmpeg is missing, click **Yes** on the automatic setup prompt to enable the visualizer.
+## 📦 Installation & Usage
+1. Download the latest `t-music-bot-rpc.exe` from the **Releases** tab.
+2. Run the application.
+3. **Setup:**
+   - If prompted, enter the 6-digit pairing code from Discord (`/rpc connect`).
+   - If you want the visualizer, click **Yes** on the automatic FFmpeg setup prompt.
+4. **OBS Setup:** Add a "Browser Source" pointing to `http://localhost:3000` with width `1360` and height `440`.
 
-## 🛠 Configuration
-The application generates a `settings.json` on the first run.
-- **audioDevice:** Set this to your system output (Run with `--list` to see available names).
-- **overlay.port:** Default is `3000`. Access your overlay at `http://localhost:3000`.
+## ⚙️ Configuration
+The `settings.json` file allows for deep customization:
+- `audioDevice`: The exact name of your system audio output (Run with `--list` to see options).
+- `visualizer.samples`: Buffer size for audio analysis (Default: 2048).
+- `visualizer.bars`: Number of frequency bands to display (Default: 64).
+- `overlay.port`: The local port for the browser overlay.
 
 ## 💻 Development
+Built with TypeScript for rock-solid stability and type-safe state management.
 ```bash
-npm install
-npm run build    # Compile & Minify
-npm run package  # Generate standalone LTS binary
+npm install      # Install dependencies
+npm run build    # Compile TypeScript
+npm run package  # Generate standalone binaries
 ```
 
 ## 📝 License
