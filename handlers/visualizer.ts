@@ -85,11 +85,14 @@ export const startCapture = (broadcaster: (data: any) => void): void => {
 
   let audioBuffer = Buffer.alloc(0);
   const requiredBytes = viz.samples * 2;
-  const hopSize = Math.floor(sr / 60) * 2;
+  // Calculate hop size based on target FPS to reduce perceived delay
+  const hopSize = Math.max(256, Math.floor(sr / Math.max(60, viz.fps))) * 2;
 
   ffmpegProcess.stdout?.on("data", (chunk: Buffer) => {
     audioBuffer = Buffer.concat([audioBuffer, chunk]);
-    if (audioBuffer.length > requiredBytes * 2) {
+    
+    // If buffer is too large, jump to the latest data to avoid lag accumulation
+    if (audioBuffer.length > requiredBytes * 3) {
         audioBuffer = audioBuffer.slice(audioBuffer.length - requiredBytes);
     }
 

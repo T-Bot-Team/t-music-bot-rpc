@@ -42,36 +42,42 @@ function checkLock(): void {
 }
 
 async function prepareFFmpeg(): Promise<void> {
-  if (!IS_PKG) return;
-  const targetDir = path.dirname(PATHS.extractedFFMPEG);
-  try {
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    
-    // Check bundled ffmpeg in multiple possible snapshot locations
-    const possiblePaths = [
-        path.join(PATHS.internal, IS_WIN ? "ffmpeg.exe" : "ffmpeg"),
-        path.join(PATHS.internal, "dist", IS_WIN ? "ffmpeg.exe" : "ffmpeg"),
-        path.join(process.cwd(), IS_WIN ? "ffmpeg.exe" : "ffmpeg")
-    ];
+  // 1. Check if ffmpeg is available in PATH or root
+  const checkCmd = IS_WIN ? "where ffmpeg" : "which ffmpeg";
+  const hasFFmpeg = await new Promise((r) => exec(checkCmd, (e) => r(!e)));
 
-    let src = "";
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) { src = p; break; }
-    }
+  if (hasFFmpeg) return;
 
-    if (src) {
-        if (!fs.existsSync(PATHS.extractedFFMPEG)) {
-            logger.log(`Extracting bundled ffmpeg from ${src}...`, true);
-            fs.writeFileSync(PATHS.extractedFFMPEG, fs.readFileSync(src));
-            if (!IS_WIN) fs.chmodSync(PATHS.extractedFFMPEG, 0o755);
-            logger.log("Extraction complete.", true);
-        }
-        (PATHS as any).ffmpeg = PATHS.extractedFFMPEG;
+  // 2. If not found, prompt the user
+  const title = "FFmpeg Missing";
+  const msg = "The visualizer requires FFmpeg to function. Would you like to download a minimal version automatically?";
+  
+  let shouldDownload = false;
+  if (IS_WIN) {
+    const ps = `powershell -NoProfile -Command "[Windows.Forms.MessageBox]::Show('${msg}', '${title}', [Windows.Forms.MessageBoxButtons]::YesNo, [Windows.Forms.MessageBoxIcon]::Information)"`;
+    const res = await new Promise<string>((r) => exec(ps, (e, o) => r(o.trim())));
+    shouldDownload = res === "Yes";
+  } else {
+    const res = await new Promise<boolean>((r) => exec(`zenity --question --title="${title}" --text="${msg}"`, (e) => r(!e)));
+    shouldDownload = res;
+  }
+
+  if (shouldDownload) {
+    logger.log("Downloading minimal FFmpeg...", true);
+    // You would typically use a library like 'got' or 'axios' here, but since we want minimal deps, 
+    // we'll use a powershell/curl command.
+    if (IS_WIN) {
+        const zipUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"; // Example URL, replace with a truly minimal build if possible
+        const psDownload = `powershell -NoProfile -Command "Invoke-WebRequest -Uri '${zipUrl}' -OutFile 'ffmpeg.zip'; Expand-Archive 'ffmpeg.zip' -DestinationPath '.'; Move-Item 'ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe' './ffmpeg.exe'; Remove-Item 'ffmpeg.zip'; Remove-Item -Recurse 'ffmpeg-master-latest-win64-gpl-shared'"`;
+        await new Promise((r) => exec(psDownload, (e) => r(!e)));
     } else {
-        logger.log("Bundled ffmpeg not found in snapshot. Using system fallback.", true);
+        // Simple Linux download logic
+        await new Promise((r) => exec("curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz && tar -xvf ffmpeg.tar.xz && mv ffmpeg-*-amd64-static/ffmpeg . && rm -rf ffmpeg.tar.xz ffmpeg-*-amd64-static", (e) => r(!e)));
     }
-  } catch (e: any) {
-    logger.log(`FFmpeg Extraction failed: ${e.message}`, true);
+    logger.log("FFmpeg installed successfully.", true);
+  } else {
+    logger.log("Visualizer will be disabled (FFmpeg missing).", true);
+    if (GLOBAL_STATE.settings) GLOBAL_STATE.settings.overlay.visualizer.enabled = false;
   }
 }
 

@@ -43,7 +43,12 @@ export class TrayController {
     try {
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
       const binPath = path.resolve(path.join(tempDir, dstName));
-      const iconPath = path.join(PATHS.assets, IS_WIN ? "icon.ico" : "icon.png");
+      const iconName = IS_WIN ? "icon.ico" : "icon.png";
+      const iconPath = [
+        path.join(PATHS.assets, iconName),
+        path.join(PATHS.internalAssets, iconName),
+      ].find((p) => fs.existsSync(p));
+
       const binSrc = path.join(PATHS.internal, "node_modules", "systray2", "traybin", binName);
 
       if (fs.existsSync(binSrc) && !fs.existsSync(binPath)) {
@@ -51,9 +56,10 @@ export class TrayController {
         if (IS_LINUX) fs.chmodSync(binPath, 0o755);
       }
 
-      if (fs.existsSync(iconPath)) {
+      if (iconPath) {
         this.menu.icon = fs.readFileSync(iconPath).toString("base64");
       }
+
 
       this.process = spawn(binPath, [], { windowsHide: true });
       const rl = readline.createInterface({ input: this.process.stdout! });

@@ -9,8 +9,8 @@
       "audioDevice": "",
       "fps": 60,
       "sampleRate": 44100,
-      "samples": 4096,
-      "bars": 96,
+      "samples": 2048,
+      "bars": 64,
       "sensitivity": 40,
       "multiplier": 40,
       "smoothing": 3,
@@ -18,7 +18,7 @@
       "barGap": 5,
       "colorTop": "#7cf6ffff",
       "colorBottom": "#1a69a8",
-      "mode": "classic",
+      "mode": "bars",
       "rounded": true,
       "glow": false
     }

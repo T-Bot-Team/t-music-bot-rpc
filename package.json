@@ -4,19 +4,12 @@
   "description": "T-Music RPC Client",
   "main": "dist/index.js",
   "bin": "dist/index.js",
-  "scripts": {
-    "start": "node dist/index.js",
-    "build": "tsc",
-    "package": "npm run build && pkg . --output dist/t-music-bot-rpc.exe",
-    "dev": "ts-node index.ts",
-    "legacy": "node index.js"
-  },
   "pkg": {
     "assets": [
       "assets/**/*",
       "settings.default.json",
-      "ffmpeg.exe",
-      "node_modules/systray2/traybin/**/*"
+      "node_modules/systray2/traybin/tray_windows_release.exe",
+      "node_modules/systray2/traybin/tray_linux_release"
     ],
     "targets": [
       "node18-win-x64",
@@ -24,6 +17,13 @@
     ],
     "icon": "assets/icon.ico",
     "outputPath": "dist"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "package": "npm run build && pkg . --compress Brotli --output dist/t-music-bot-rpc",
+    "dev": "ts-node index.ts",
+    "legacy": "node index.js"
   },
   "dependencies": {
     "@t_bot-team/discord-rpc": "^4.0.5",
