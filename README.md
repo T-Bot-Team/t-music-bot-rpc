@@ -1,6 +1,6 @@
 # T_Music_Bot RPC
 
-A lightweight, cross-platform Discord Rich Presence (RPC) client for the T_Music_Bot. This client displays your current music activity from the bot directly on your Discord profile and provides a high-quality OBS visualizer overlay.
+A lightweight, cross-platform Discord Rich Presence (RPC) client for **T_Music_Bot**. This client displays your current music activity from the bot directly on your Discord profile and provides a high-quality OBS visualizer overlay.
 
 ## Features
 
@@ -8,8 +8,7 @@ A lightweight, cross-platform Discord Rich Presence (RPC) client for the T_Music
 - **Lightweight:** Minimal CPU and memory usage (~40MB executable).
 - **Auto-Setup:** Easy pairing process via Discord with automatic 6-digit code detection.
 - **GUI & Tray:** Integrated system tray with a clean setup interface and real-time status updates.
-- **OBS Visualizer Overlay:** Professional 1360x440 audio-responsive overlay with customizable modes (classic, wave, neon, etc.).
-- **Auto-FFmpeg Dependency:** One-click automatic detection and setup for visualizer components.
+- **OBS Visualizer Overlay:** Amazing-looking 1360x440 audio-responsive overlay with customizable modes (classic, wave, neon, etc.).
 
 ## Installation
 
@@ -101,7 +100,6 @@ To use the overlay in OBS:
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18.16.0 or higher recommended)
-- `npm` (comes with Node.js)
 
 ### Steps
 1. **Clone the repository:**
@@ -118,7 +116,7 @@ To use the overlay in OBS:
 3. **Build the binaries:**
    ```bash
    npm run build    # Compiles TypeScript and prepares dist/ folder
-   npm run package  # Generates optimized, Brotli-compressed standalone binaries
+   npm run package  # Generates standalone binaries
    ```
 
 ---
