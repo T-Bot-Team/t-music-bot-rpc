@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>T_Music_Bot | Professional Control Center</title>
+    <link rel="icon" type="image/png" href="/assets/avatar.png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+        
+        :root {
+            --bg: #0c0c0e;
+            --surface: #16161a;
+            --surface-raised: #1f1f24;
+            --border: #2d2d35;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+            --track: #2a2a32;
+            --success: #10b981;
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { 
+            width: 100%;
+            max-width: 1100px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding-bottom: 40px;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+        .badge { background: var(--surface-raised); border: 1px solid var(--border); color: var(--accent); padding: 6px 14px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; }
+
+        .grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr;
+            gap: 24px; 
+            margin-bottom: 120px; 
+        }
+        .card { 
+            background: var(--surface); 
+            border: 1px solid var(--border); 
+            border-radius: 24px; 
+            padding: 28px; 
+        }
+        .card-header { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            margin-bottom: 24px; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px;
+            color: var(--accent);
+        }
+
+        .field { margin-bottom: 20px; }
+        label { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-weight: 600; 
+            font-size: 0.9rem; 
+            margin-bottom: 10px;
+        }
+        .val-display { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); background: var(--bg); padding: 2px 8px; border-radius: 6px; }
+        .desc { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
+
+        input[type="text"], input[type="number"], select { 
+            background: var(--bg); border: 1px solid var(--border); color: var(--text); 
+            padding: 12px 16px; border-radius: 12px; font-family: inherit; font-size: 0.95rem; 
+            outline: none; width: 100%; box-sizing: border-box;
+        }
+
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; height: 32px; cursor: pointer; }
+        input[type="range"]::-webkit-slider-runnable-track { 
+            width: 100%; height: 4px;
+            background-color: var(--track);
+            border-radius: 2px; 
+        }
+        input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; 
+            background: var(--accent); border: 3px solid #fff; cursor: pointer; 
+            margin-top: -10px; box-shadow: 0 0 15px var(--accent-glow); 
+        }
+
+        /* COLOR PICKER FIX - REMOVE WHITE OUTLINE */
+        input[type="color"] { -webkit-appearance: none; border: none; padding: 0; background: none; cursor: pointer; outline: none; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
+
+        .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .toggle-item { 
+            display: flex; align-items: center; gap: 10px; background: var(--bg); 
+            padding: 14px; border-radius: 12px; border: 1px solid var(--border); 
+            cursor: pointer; transition: 0.2s ease;
+        }
+        .toggle-item:hover { border-color: var(--accent); }
+        .toggle-item input { width: 18px; height: 18px; accent-color: var(--accent); }
+        .toggle-text { font-size: 0.85rem; font-weight: 600; }
+
+        .deploy-zone { 
+            position: fixed; bottom: 40px; right: 40px; /* MOVE TO RIGHT */
+            background: var(--surface); border: 2px solid var(--border); 
+            padding: 16px 30px; border-radius: 24px; width: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.8); display: flex; 
+            flex-direction: row-reverse; gap: 20px; align-items: center; z-index: 1000;
+        }
+        button { 
+            background: var(--accent); color: #000; border: none; padding: 16px 40px; 
+            border-radius: 14px; font-weight: 800; font-size: 1rem; cursor: pointer; 
+            transition: 0.3s; text-transform: uppercase;
+        }
+        button:hover { transform: scale(1.02); filter: brightness(1.1); box-shadow: 0 0 20px var(--accent-glow); }
+        
+        #status { font-weight: 700; font-size: 0.9rem; padding: 10px 20px; border-radius: 10px; display: none; }
+        .status-ok { color: var(--success); background: rgba(16, 185, 129, 0.1); display: block; }
+        .status-err { color: #ef4444; background: rgba(239, 68, 68, 0.1); display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <img src="/assets/avatar.png" alt="Logo">
+                <div>
+                    <h1>Control Center</h1>
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">T_Music_Bot RPC</div>
+                </div>
+            </div>
+            <span class="badge">v1.3.1-STABLE</span>
+        </header>
+
+        <form id="settingsForm">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">🔌 System Connection</div>
+                    <div class="field">
+                        <label>Discord Pairing Code</label>
+                        <input type="text" id="sys_code" placeholder="000000">
+                        <div class="desc" style="margin-top: 5px;">Run <b>/rpc connect</b> in Discord.</div>
+                    </div>
+                    <div class="field">
+                        <label>Discord User ID</label>
+                        <input type="text" id="sys_userId" placeholder="18-digit ID">
+                    </div>
+                    <div class="field">
+                        <label>Overlay Port</label>
+                        <input type="number" id="sys_port">
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="sys_overlayEnabled"><span class="toggle-text">Enable Overlay</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="viz_debugFps"><span class="toggle-text">Show FPS</span></label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">⚙️ Audio Physics</div>
+                    <div class="field">
+                        <label>Input Sensitivity <span class="val-display" id="val_sens">40</span></label>
+                        <input type="range" min="10" max="100" id="viz_sensitivity" oninput="document.getElementById('val_sens').innerText=this.value">
+                    </div>
+                    <div class="field">
+                        <label>Visual Multiplier <span class="val-display" id="val_mult">40</span></label>
+                        <input type="range" min="10" max="100" id="viz_multiplier" oninput="document.getElementById('val_mult').innerText=this.value">
+                    </div>
+                    <div class="field">
+                        <label>Gravity / Fluidity <span class="val-display" id="val_fluid">0.25</span></label>
+                        <input type="range" min="0.05" max="0.95" step="0.05" id="viz_smoothness" oninput="document.getElementById('val_fluid').innerText=this.value">
+                    </div>
+                    <div class="field">
+                        <label>Temporal Smoothing <span class="val-display" id="val_temp">3</span></label>
+                        <input type="range" min="1" max="20" id="viz_smoothing" oninput="document.getElementById('val_temp').innerText=this.value">
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="viz_physics"><span class="toggle-text">Monstercat Physics</span></label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📊 Rendering Style</div>
+                    <div class="field">
+                        <label>Shape Mode</label>
+                        <select id="viz_mode">
+                            <option value="bars">Classic Frequency Bars</option>
+                            <option value="center">Pulsing Center Split</option>
+                            <option value="wave">Fluid Liquid Waveform</option>
+                            <option value="neon">Hollow Neon Outlines</option>
+                            <option value="led">LED Dot Matrix</option>
+                            <option value="outline">Linear Outline Path</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Bar Count <span class="val-display" id="val_bars">96</span></label>
+                        <input type="range" min="10" max="256" step="2" id="viz_bars" oninput="document.getElementById('val_bars').innerText=this.value">
+                    </div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Bar Width</label>
+                            <input type="number" id="viz_barWidth">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>Bar Gap</label>
+                            <input type="number" id="viz_barGap">
+                        </div>
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="viz_rounded"><span class="toggle-text">Round Edges</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="viz_glow"><span class="toggle-text">Enable Glow</span></label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">🎨 Visual Theme</div>
+                    <div class="field">
+                        <label>Viz Gradient (Top / Bottom)</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="color" id="viz_gradTop" style="width: 50%; height: 45px; border-radius: 8px;">
+                            <input type="color" id="viz_gradBottom" style="width: 50%; height: 45px; border-radius: 8px;">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Overlay Opacity <span class="val-display" id="val_bgOp">0.85</span></label>
+                        <input type="range" min="0" max="1" step="0.05" id="overlay_backgroundOpacity" oninput="document.getElementById('val_bgOp').innerText=this.value">
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="overlay_globalSync"><span class="toggle-text">Album Art Sync</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="bg_grad_random"><span class="toggle-text">Randomize</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_showBackground"><span class="toggle-text">Blur Edges</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_showThumbnailBackground"><span class="toggle-text">Cover Art Bg</span></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="deploy-zone">
+                <button type="submit">Update Stream</button>
+                <div id="status">DEPLOYED SUCCESSFULLY</div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('settingsForm'), status = document.getElementById('status');
+        const cleanHex = (h) => (h && h.length > 7) ? h.substring(0, 7) : (h || "#000000");
+
+        function showStatus(msg, isErr = false) {
+            status.innerText = msg; status.className = isErr ? 'status-err' : 'status-ok';
+            setTimeout(() => status.className = '', 5000);
+        }
+
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings'); 
+                const state = await res.json();
+                const o = state.overlay || {};
+                const v = o.visualizer || {};
+
+                document.getElementById('sys_code').value = state.code || "";
+                document.getElementById('sys_userId').value = state.userId || "";
+                document.getElementById('sys_port').value = o.port ?? 32000;
+                document.getElementById('sys_overlayEnabled').checked = o.enabled ?? true;
+
+                document.getElementById('viz_debugFps').checked = v.debug_fps ?? true;
+                document.getElementById('viz_physics').checked = v.horizontal_smoothing ?? true;
+                
+                document.getElementById('viz_sensitivity').value = v.sensitivity ?? 40;
+                document.getElementById('val_sens').innerText = document.getElementById('viz_sensitivity').value;
+
+                document.getElementById('viz_multiplier').value = v.multiplier ?? 40;
+                document.getElementById('val_mult').innerText = document.getElementById('viz_multiplier').value;
+
+                document.getElementById('viz_smoothness').value = v.visual_fluidity ?? 0.25;
+                document.getElementById('val_fluid').innerText = document.getElementById('viz_smoothness').value;
+                
+                document.getElementById('viz_smoothing').value = v.smoothing ?? 3;
+                document.getElementById('val_temp').innerText = document.getElementById('viz_smoothing').value;
+
+                document.getElementById('viz_mode').value = v.mode || "bars";
+                document.getElementById('viz_bars').value = v.bars ?? 96;
+                document.getElementById('val_bars').innerText = document.getElementById('viz_bars').value;
+
+                document.getElementById('viz_barWidth').value = v.bar_width ?? 10;
+                document.getElementById('viz_barGap').value = v.bar_gap ?? 5;
+                
+                document.getElementById('viz_rounded').checked = v.rounded ?? false;
+                document.getElementById('viz_glow').checked = v.glow ?? false;
+                document.getElementById('overlay_globalSync').checked = o.global_sync ?? false;
+                document.getElementById('bg_grad_random').checked = v.gradient?.random ?? true;
+                
+                document.getElementById('viz_gradTop').value = cleanHex(v.gradient?.top || "#7cf6ff");
+                document.getElementById('viz_gradBottom').value = cleanHex(v.gradient?.bottom || "#1a69a8");
+
+                document.getElementById('overlay_backgroundOpacity').value = o.background_opacity ?? 0.85;
+                document.getElementById('val_bgOp').innerText = document.getElementById('overlay_backgroundOpacity').value;
+
+                document.getElementById('overlay_showBackground').checked = o.show_background ?? true;
+                document.getElementById('overlay_showThumbnailBackground').checked = o.show_thumbnail_background ?? true;
+
+            } catch (e) { showStatus("Backend Connection Lost!", true); }
+        }
+
+        async function saveSettings() {
+            const payload = {
+                code: document.getElementById('sys_code').value,
+                userId: document.getElementById('sys_userId').value,
+                overlay: {
+                    enabled: document.getElementById('sys_overlayEnabled').checked,
+                    port: parseInt(document.getElementById('sys_port').value),
+                    layout: "full",
+                    show_background: document.getElementById('overlay_showBackground').checked,
+                    background_opacity: parseFloat(document.getElementById('overlay_backgroundOpacity').value),
+                    thumbnail_opacity: 0.25,
+                    center_text: false,
+                    global_sync: document.getElementById('overlay_globalSync').checked,
+                    text_color: "#ffffff",
+                    border_color: "transparent",
+                    element_color: "rgba(255,255,255,0.15)",
+                    background: {
+                        enabled: true,
+                        color: "rgba(0,0,0,0.85)",
+                        useGradient: false,
+                        gradient: {
+                            is_static: false,
+                            random: document.getElementById('bg_grad_random').checked,
+                            top: document.getElementById('viz_gradTop').value,
+                            bottom: document.getElementById('viz_gradBottom').value
+                        }
+                    },
+                    visualizer: {
+                        enabled: true,
+                        debug_fps: document.getElementById('viz_debugFps').checked,
+                        audioDevice: "default",
+                        sampleRate: 48000,
+                        samples: 4096,
+                        bars: parseInt(document.getElementById('viz_bars').value),
+                        smoothing: parseInt(document.getElementById('viz_smoothing').value),
+                        sensitivity: parseInt(document.getElementById('viz_sensitivity').value),
+                        multiplier: parseInt(document.getElementById('viz_multiplier').value),
+                        audioReactionDelay: 3,
+                        visual_fluidity: parseFloat(document.getElementById('viz_smoothness').value),
+                        bar_width: parseInt(document.getElementById('viz_barWidth').value),
+                        bar_gap: parseInt(document.getElementById('viz_barGap').value),
+                        gradient: {
+                            is_static: false,
+                            random: document.getElementById('bg_grad_random').checked,
+                            top: document.getElementById('viz_gradTop').value,
+                            bottom: document.getElementById('viz_gradBottom').value
+                        },
+                        mode: document.getElementById('viz_mode').value,
+                        glow: document.getElementById('viz_glow').checked,
+                        rounded: document.getElementById('viz_rounded').checked,
+                        toggle_animation: false,
+                        horizontal_smoothing: document.getElementById('viz_physics').checked,
+                        animationSpeed: 1.0,
+                        fps: 60
+                    },
+                    show_thumbnail_background: document.getElementById('overlay_showThumbnailBackground').checked,
+                    thumbnail_background_opacity: 0.3
+                }
+            };
+
+            try {
+                const res = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                showStatus("DEPLOYED SUCCESSFULLY"); 
+            } catch (e) { showStatus(`DEPLOY FAILED: ${e.message}`, true); }
+        }
+        
+        form.onsubmit = (e) => { e.preventDefault(); saveSettings(); }; 
+        loadSettings();
+    </script>
+</body>
+</html>

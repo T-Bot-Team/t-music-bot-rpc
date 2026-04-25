@@ -1,0 +1,117 @@
+use crate::VisualizerConfig;
+use rustfft::{num_complex::Complex, FftPlanner};
+use std::sync::mpsc::Receiver;
+use tokio::sync::broadcast::Sender;
+
+pub fn run_processor(
+    config: VisualizerConfig,
+    audio_rx: Receiver<Vec<f32>>,
+    tx_proc: Sender<String>,
+    sr: f32,
+    channels: usize,
+) {
+    let win_size = config.samples as usize;
+    let bars = config.bars as usize;
+    let fps_target = (config.fps as f32).clamp(30.0, 240.0);
+    
+    let hop_size = (sr / fps_target).floor() as usize * channels; 
+    let target_len = win_size * channels;
+
+    let mut planner = FftPlanner::new();
+    let fft_proc = planner.plan_fft_forward(win_size);
+
+    let window: Vec<f32> = (0..win_size)
+        .map(|i| 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (win_size - 1) as f32).cos()))
+        .collect();
+
+    // 1. Improved Logarithmic Binning (20Hz to 20kHz)
+    let bin_width = sr / win_size as f32;
+    let mut bin_ranges = Vec::with_capacity(bars);
+    for i in 0..bars {
+        let f_start = 20.0 * (20000.0 / 20.0f32).powf(i as f32 / bars as f32);
+        let f_end = 20.0 * (20000.0 / 20.0f32).powf((i + 1) as f32 / bars as f32);
+        let b_start = ((f_start / bin_width).floor() as usize).max(1);
+        let mut b_end = (f_end / bin_width).ceil() as usize;
+        if b_end <= b_start { b_end = b_start + 1; }
+        bin_ranges.push(b_start..b_end.min(win_size / 2));
+    }
+
+    let mut staging_buffer: Vec<f32> = Vec::with_capacity(target_len * 3);
+    let mut mono: Vec<Complex<f32>> = vec![Complex::new(0.0, 0.0); win_size];
+    let mut last_values: Vec<f32> = vec![0.0; bars];
+
+    let sensitivity = config.sensitivity as f32;
+    let multiplier = config.multiplier as f32;
+
+    while let Ok(mut data) = audio_rx.recv() {
+        staging_buffer.append(&mut data);
+        if staging_buffer.len() > target_len * 3 {
+            let excess = staging_buffer.len() - (target_len * 2);
+            staging_buffer.drain(0..excess);
+        }
+
+        while staging_buffer.len() >= target_len {
+            let current_samples = &staging_buffer[0..target_len];
+            for (i, chunk) in current_samples.chunks_exact(channels).take(win_size).enumerate() {
+                let avg: f32 = chunk.iter().sum::<f32>() / channels as f32;
+                mono[i] = Complex::new(avg * window[i], 0.0);
+            }
+            fft_proc.process(&mut mono);
+
+            let mut raw_bins = vec![0.0f32; bars];
+
+            for i in 0..bars {
+                let range = &bin_ranges[i];
+                let mut max_peak = 0.0f32;
+                for j in range.start..range.end {
+                    let mag = (mono[j].norm() / win_size as f32) * 2.0;
+                    if mag > max_peak { max_peak = mag; }
+                }
+
+                // MATCH TS PHYSICS EXACTLY
+                let mut db = 20.0 * max_peak.max(1e-10).log10();
+                
+                // +25dB linear ramp for high end (from TS constants)
+                db += (i as f32 / bars as f32) * 25.0; 
+                
+                // Normalization (Sensitivity as floor)
+                let val = ((db + sensitivity) / sensitivity).clamp(0.0, 1.0);
+                
+                // Multiplier (Matches TS logic where mult/25 is the peak scale)
+                raw_bins[i] = val * (multiplier / 25.0); 
+            }
+
+            // 4. Horizontal Kernel Smoothing (The "Wave" look)
+            let mut smoothed_horizontal = vec![0.0f32; bars];
+            let kernel = [0.1, 0.2, 0.4, 0.2, 0.1]; // 5-tap Gaussian-ish
+            for i in 0..bars {
+                let mut sum = 0.0;
+                for (k, &weight) in kernel.iter().enumerate() {
+                    let idx = (i as isize + k as isize - 2).clamp(0, bars as isize - 1) as usize;
+                    sum += raw_bins[idx] * weight;
+                }
+                smoothed_horizontal[i] = sum;
+            }
+
+            // 5. Temporal Smoothing (Attack/Decay)
+            let mut bin_data = vec![0u8; bars];
+            let attack = 0.8; 
+            let decay = (1.0 / (config.smoothing as f32).clamp(1.0, 30.0)).min(0.5);
+
+            for i in 0..bars {
+                let target = smoothed_horizontal[i];
+                let old = last_values[i];
+                let smoothed = if target > old {
+                    old + (target - old) * attack
+                } else {
+                    old + (target - old) * decay
+                };
+                last_values[i] = smoothed;
+                bin_data[i] = (smoothed.clamp(0.0, 1.0) * 255.0) as u8;
+            }
+
+            let _ = tx_proc.send(serde_json::json!({ "type": "fft_data", "bins": bin_data }).to_string());
+            staging_buffer.drain(0..hop_size);
+        }
+    }
+}

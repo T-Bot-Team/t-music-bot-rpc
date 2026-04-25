@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>T_Music_Bot | Setup Guide</title>
+    <link rel="icon" type="image/png" href="/assets/avatar.png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+        
+        :root {
+            --bg: #0c0c0e;
+            --surface: #16161a;
+            --surface-raised: #1f1f24;
+            --border: #2d2d35;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+            --track: #2a2a32;
+            --success: #10b981;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { 
+            width: 100%;
+            max-width: 1100px;
+            animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding-bottom: 40px;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+
+        .card { 
+            background: var(--surface); 
+            border: 1px solid var(--border); 
+            border-radius: 24px; 
+            padding: 28px; 
+            margin-bottom: 24px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+        .card-header { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            margin-bottom: 24px; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px;
+            color: var(--accent);
+        }
+
+        .field { margin-bottom: 20px; }
+        label { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-weight: 600; 
+            font-size: 0.9rem; 
+            margin-bottom: 10px;
+        }
+        .desc { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
+
+        input[type="text"], input[type="number"], select { 
+            background: var(--bg); border: 1px solid var(--border); color: var(--text); 
+            padding: 12px 16px; border-radius: 12px; font-family: inherit; font-size: 0.95rem; 
+            outline: none; width: 100%; box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .toggle-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .toggle-item { 
+            display: flex; align-items: center; gap: 10px; background: var(--bg); 
+            padding: 14px; border-radius: 12px; border: 1px solid var(--border); 
+            cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .toggle-item:hover { border-color: var(--accent); background: var(--surface-raised); }
+        .toggle-item input { width: 18px; height: 18px; accent-color: var(--accent); }
+        .toggle-text { font-size: 0.85rem; font-weight: 600; }
+
+        .deploy-zone { 
+            position: fixed; bottom: 40px; right: 50%; transform: translateX(50%);
+            background: var(--surface); border: 2px solid var(--border); 
+            padding: 16px 30px; border-radius: 24px; width: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.8); display: flex; 
+            flex-direction: row-reverse; gap: 20px; align-items: center; z-index: 1000;
+        }
+        button { 
+            background: var(--accent); color: #000; border: none; padding: 16px 40px; 
+            border-radius: 14px; font-weight: 800; font-size: 1rem; cursor: pointer; 
+            transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease; text-transform: uppercase;
+        }
+        button:hover { transform: scale(1.04); filter: brightness(1.1); box-shadow: 0 0 20px var(--accent-glow); }
+        
+        #status { font-weight: 700; font-size: 0.9rem; padding: 10px 20px; border-radius: 10px; display: none; }
+        .status-ok { color: var(--success); background: rgba(16, 185, 129, 0.1); display: block; animation: fadeIn 0.3s ease; }
+        .status-err { color: #ef4444; background: rgba(239, 68, 68, 0.1); display: block; animation: fadeIn 0.3s ease; }
+
+        .hidden-section {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease, opacity 0.4s ease, margin-top 0.4s ease, padding-top 0.4s ease;
+        }
+        .hidden-section.visible {
+            max-height: 400px;
+            opacity: 1;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <img src="/assets/avatar.png" alt="Logo">
+                <div>
+                    <h1>First Time Setup</h1>
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">Welcome to T_Music_Bot RPC! Let's get you started.</div>
+                </div>
+            </div>
+        </header>
+
+        <form id="setupForm">
+            <div style="display: flex; flex-direction: column; max-width: 600px; margin: 0 auto; margin-bottom: 80px;">
+                
+                <div class="card">
+                    <div class="card-header">🔗 Step 1: Discord Connection</div>
+                    <div class="field">
+                        <label>Pairing Code</label>
+                        <input type="text" id="sys_code" placeholder="000000" maxlength="6" required autocomplete="off">
+                        <div class="desc" style="margin-top: 8px;">Run <b>/rpc connect</b> in a Discord channel to get your 6-digit pairing code.</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">📺 Step 2: Stream Overlay</div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_overlayEnabled" onchange="toggleOverlayOptions()">
+                            <span class="toggle-text">Enable Overlay (For OBS/Streaming)</span>
+                        </label>
+                    </div>
+
+                    <div id="overlay_options" class="hidden-section">
+                        <div class="field">
+                            <label>Overlay Port</label>
+                            <input type="number" id="sys_port" value="3000">
+                        </div>
+                        <div class="toggle-grid">
+                            <label class="toggle-item">
+                                <input type="checkbox" id="sys_vizEnabled" onchange="toggleVizOptions()">
+                                <span class="toggle-text">Enable Audio Visualizer</span>
+                            </label>
+                        </div>
+                        
+                        <div id="viz_options" class="hidden-section">
+                            <div class="field">
+                                <label>Playback Device (Audio Source)</label>
+                                <select id="sys_audioDevice">
+                                    <option value="default">Default Output</option>
+                                    <!-- populated dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="deploy-zone">
+                <button type="submit">Complete Setup</button>
+                <div id="status">SAVED! REDIRECTING...</div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const el = (id) => document.getElementById(id);
+        const overlayOpts = el('overlay_options');
+        const vizOpts = el('viz_options');
+
+        function toggleOverlayOptions() {
+            if (el('sys_overlayEnabled').checked) {
+                overlayOpts.classList.add('visible');
+            } else {
+                overlayOpts.classList.remove('visible');
+                el('sys_vizEnabled').checked = false;
+                toggleVizOptions();
+            }
+        }
+
+        function toggleVizOptions() {
+            if (el('sys_vizEnabled').checked) {
+                vizOpts.classList.add('visible');
+            } else {
+                vizOpts.classList.remove('visible');
+            }
+        }
+
+        async function fetchDevices() {
+            try {
+                const res = await fetch('/api/devices');
+                const devices = await res.json();
+                const select = el('sys_audioDevice');
+                devices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.innerText = d;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error("Failed to load devices", e);
+            }
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+            
+            const codeInput = el('sys_code').value.trim();
+            if (codeInput.length !== 6) {
+                alert("Pairing code must be exactly 6 characters.");
+                return;
+            }
+
+            try {
+                const res1 = await fetch('/api/settings'); 
+                const state = await res1.json();
+                
+                state.code = codeInput;
+                state.overlay.enabled = el('sys_overlayEnabled').checked;
+                state.overlay.port = parseInt(el('sys_port').value) || 3000;
+                state.overlay.visualizer.enabled = el('sys_vizEnabled').checked;
+                
+                if (el('sys_audioDevice').value !== 'default') {
+                    state.overlay.visualizer.audioDevice = el('sys_audioDevice').value;
+                }
+
+                const res2 = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state)
+                });
+                
+                if (!res2.ok) throw new Error(await res2.text());
+                
+                el('status').className = 'status-ok';
+                setTimeout(() => window.location.href = '/settings', 1000);
+            } catch(e) {
+                alert("Save Error: " + e.message);
+            }
+        }
+
+        fetchDevices();
+        el('setupForm').onsubmit = saveSettings;
+    </script>
+</body>
+</html>

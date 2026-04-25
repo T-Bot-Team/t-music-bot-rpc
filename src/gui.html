@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>T_Music_Bot | Professional Control Center</title>
+    <link rel="icon" type="image/png" href="/assets/avatar.png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+        
+        :root {
+            --bg: #0c0c0e;
+            --surface: #16161a;
+            --surface-raised: #1f1f24;
+            --border: #2d2d35;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+            --track: #2a2a32;
+            --success: #10b981;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { 
+            width: 100%;
+            max-width: 1100px;
+            animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding-bottom: 40px;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+        .badge { background: var(--surface-raised); border: 1px solid var(--border); color: var(--accent); padding: 6px 14px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; }
+
+        .grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr;
+            gap: 24px; 
+            margin-bottom: 120px; 
+        }
+        .card { 
+            background: var(--surface); 
+            border: 1px solid var(--border); 
+            border-radius: 24px; 
+            padding: 28px; 
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+        }
+        .card-header { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            margin-bottom: 24px; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px;
+            color: var(--accent);
+        }
+
+        .field { margin-bottom: 20px; }
+        label { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            font-weight: 600; 
+            font-size: 0.9rem; 
+            margin-bottom: 10px;
+        }
+        .val-display { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); background: var(--bg); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); }
+        .desc { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; line-height: 1.4; }
+
+        input[type="text"], input[type="number"], select { 
+            background: var(--bg); border: 1px solid var(--border); color: var(--text); 
+            padding: 12px 16px; border-radius: 12px; font-family: inherit; font-size: 0.95rem; 
+            outline: none; width: 100%; box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* HIDE SPINNERS FOR NUMBERS */
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; height: 32px; cursor: pointer; }
+        
+        /* WEBKIT SLIDER */
+        input[type="range"]::-webkit-slider-runnable-track { 
+            width: 100%; height: 4px; background-color: var(--track); border-radius: 2px; 
+        }
+        input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; 
+            background: var(--accent); border: 3px solid #fff; cursor: pointer; 
+            margin-top: -10px; box-shadow: 0 0 15px var(--accent-glow); 
+            transition: transform 0.2s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+        /* MOZILLA SLIDER */
+        input[type="range"]::-moz-range-track { 
+            width: 100%; height: 4px; background-color: var(--track); border-radius: 2px; border: none;
+        }
+        input[type="range"]::-moz-range-thumb { 
+            height: 24px; width: 24px; border-radius: 50%; 
+            background: var(--accent); border: 3px solid #fff; cursor: pointer; 
+            box-shadow: 0 0 15px var(--accent-glow); 
+            transition: transform 0.2s ease;
+        }
+        input[type="range"]::-moz-range-thumb:hover { transform: scale(1.15); }
+
+        /* MODERN COLOR PICKER */
+        input[type="color"] { 
+            -webkit-appearance: none; -moz-appearance: none; appearance: none; 
+            border: none; padding: 0; background: none; cursor: pointer; outline: none; 
+            width: 100%; height: 45px; border-radius: 12px; overflow: hidden;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { 
+            border: none; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); 
+            transition: transform 0.2s ease; 
+        }
+        input[type="color"]::-moz-color-swatch { 
+            border: none; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); 
+            transition: transform 0.2s ease; 
+        }
+        input[type="color"]:hover::-webkit-color-swatch { transform: scale(1.05); }
+        input[type="color"]:hover::-moz-color-swatch { transform: scale(1.05); }
+
+        .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .toggle-item { 
+            display: flex; align-items: center; gap: 10px; background: var(--bg); 
+            padding: 14px; border-radius: 12px; border: 1px solid var(--border); 
+            cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
+        }
+        .toggle-item:hover { border-color: var(--accent); background: var(--surface-raised); }
+        .toggle-item input { width: 18px; height: 18px; accent-color: var(--accent); }
+        .toggle-text { font-size: 0.85rem; font-weight: 600; }
+
+        .deploy-zone { 
+            position: fixed; bottom: 40px; right: 40px;
+            background: var(--surface); border: 2px solid var(--border); 
+            padding: 16px 30px; border-radius: 24px; width: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.8); display: flex; 
+            flex-direction: row-reverse; gap: 20px; align-items: center; z-index: 1000;
+        }
+        button { 
+            font-family: inherit;
+            background: var(--accent); color: #000; border: none; padding: 16px 40px; 
+            border-radius: 14px; font-weight: 800; font-size: 1rem; cursor: pointer; 
+            transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease; text-transform: uppercase;
+        }
+        button:hover { transform: scale(1.04); filter: brightness(1.1); box-shadow: 0 0 20px var(--accent-glow); }
+        
+        #status { font-weight: 700; font-size: 0.9rem; padding: 10px 20px; border-radius: 10px; display: none; }
+        .status-ok { color: var(--success); background: rgba(16, 185, 129, 0.1); display: block; animation: fadeIn 0.3s ease; }
+        .status-err { color: #ef4444; background: rgba(239, 68, 68, 0.1); display: block; animation: fadeIn 0.3s ease; }
+
+        .guide-box {
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(56, 189, 248, 0.05);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 12px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--text-dim);
+        }
+        .guide-box strong { color: var(--text); }
+        .guide-box code { 
+            background: rgba(255,255,255,0.08); 
+            padding: 2px 6px; 
+            border-radius: 6px; 
+            color: var(--accent); 
+            font-family: 'JetBrains Mono', monospace; 
+            font-size: 0.75rem; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <img src="/assets/avatar.png" alt="Logo">
+                <div>
+                    <h1>Control Center</h1>
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">T_Music_Bot RPC</div>
+                </div>
+            </div>
+            <span class="badge">v1.1.0</span>
+        </header>
+
+        <form id="settingsForm">
+            <div class="grid">
+                <!-- TOP LEFT: RENDERING -->
+                <div class="card">
+                    <div class="card-header">📊 Rendering Style</div>
+                    <div class="field">
+                        <label>Layout Mode</label>
+                        <select id="overlay_layout">
+                            <option value="full">Full Cinematic</option>
+                            <option value="compact-bar">Compact Bar</option>
+                            <option value="compact-minimal">Minimalist</option>
+                        </select>
+                        <div class="desc">Minimalist removes thumbnail and visualizer.</div>
+                    </div>
+                    <div class="field">
+                        <label>Shape Mode</label>
+                        <select id="viz_mode">
+                            <option value="bars">Classic Frequency Bars</option>
+                            <option value="center-bars">Pulsing Center Split</option>
+                            <option value="wave">Fluid Liquid Waveform</option>
+                            <option value="neon">Hollow Neon Outlines</option>
+                            <option value="led">LED Dot Matrix</option>
+                            <option value="outline">Linear Outline Path</option>
+                            <option value="sides">Edges: Left & Right</option>
+                            <option value="background">Full Background</option>
+                            <option value="mirrored">Edges: Top & Bottom</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Bar Count <span class="val-display" id="val_bars">96</span></label>
+                        <input type="range" min="10" max="256" step="2" id="viz_bars" oninput="const v=document.getElementById('val_bars'); if(v) v.innerText=this.value">
+                    </div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Bar Width</label>
+                            <input type="number" id="viz_barWidth">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>Bar Gap</label>
+                            <input type="number" id="viz_barGap">
+                        </div>
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="viz_rounded"><span class="toggle-text">Round Edges</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="viz_glow"><span class="toggle-text">Enable Glow</span></label>
+                    </div>
+                </div>
+
+                <!-- TOP RIGHT: THEME -->
+                <div class="card">
+                    <div class="card-header">🎨 Visual Theme</div>
+                    <div class="field">
+                        <label>Colors & Elements</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <div class="desc">Text Color</div>
+                                <input type="color" id="overlay_textColor">
+                            </div>
+                            <div>
+                                <div class="desc">Border Color</div>
+                                <input type="color" id="overlay_borderColor">
+                            </div>
+                            <div>
+                                <div class="desc">Element Color</div>
+                                <input type="color" id="overlay_elementColor">
+                            </div>
+                            <div>
+                                <div class="desc">Viz Top</div>
+                                <input type="color" id="viz_gradTop">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Background Style</label>
+                        <select id="overlay_bgStyle">
+                            <option value="none">None (Solid Color)</option>
+                            <option value="blur">Blur Edges (Aura)</option>
+                            <option value="cover">Full Cover Art BG</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Master Opacity <span class="val-display" id="val_bgOp">0.85</span></label>
+                            <input type="range" min="0" max="1" step="0.05" id="overlay_backgroundOpacity" oninput="const v=document.getElementById('val_bgOp'); if(v) v.innerText=this.value">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>FX Opacity <span class="val-display" id="val_thumbOp">0.5</span></label>
+                            <input type="range" min="0" max="1" step="0.05" id="overlay_thumbOpacity" oninput="const v=document.getElementById('val_thumbOp'); if(v) v.innerText=this.value">
+                        </div>
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="overlay_globalSync"><span class="toggle-text">Cover Art Sync</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="bg_grad_random"><span class="toggle-text">Randomize Viz</span></label>
+                    </div>
+                </div>
+
+                <!-- BOTTOM LEFT: PHYSICS -->
+                <div class="card">
+                    <div class="card-header">⚙️ Audio Physics</div>
+                    <div class="field">
+                        <label>Max FPS <span class="val-display" id="val_fps">60</span></label>
+                        <input type="range" min="15" max="240" step="1" id="viz_fps" oninput="const v=document.getElementById('val_fps'); if(v) v.innerText=this.value">
+                    </div>
+                    <div class="field">
+                        <label>Visual Fidelity (Samples) <span class="val-display" id="val_samples">2048</span></label>
+                        <div class="desc">Lower = Faster/Jagged, Higher = Precise/Smooth. (Min 4096 recommended for bass)</div>
+                        <input type="range" min="512" max="16384" step="512" id="viz_samples" oninput="const v=document.getElementById('val_samples'); if(v) v.innerText=this.value">
+                    </div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Sensitivity <span class="val-display" id="val_sens">40</span></label>
+                            <input type="range" min="1" max="100" id="viz_sensitivity" oninput="const v=document.getElementById('val_sens'); if(v) v.innerText=this.value">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>Multiplier <span class="val-display" id="val_mult">40</span></label>
+                            <input type="range" min="1" max="150" id="viz_multiplier" oninput="const v=document.getElementById('val_mult'); if(v) v.innerText=this.value">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Temporal Smoothing <span class="val-display" id="val_smooth">3</span></label>
+                        <div class="desc">Averages audio data over time to prevent flickering</div>
+                        <input type="range" min="0" max="20" id="viz_smoothing" oninput="const v=document.getElementById('val_smooth'); if(v) v.innerText=this.value">
+                    </div>
+                </div>
+
+                <!-- BOTTOM RIGHT: SYSTEM -->
+                <div class="card">
+                    <div class="card-header">🔌 System Connection</div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Pairing Code</label>
+                            <input type="text" id="sys_code" placeholder="000000">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>Overlay Port</label>
+                            <input type="number" id="sys_port">
+                        </div>
+                    </div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="sys_overlayEnabled"><span class="toggle-text">Enable Overlay</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="sys_vizEnabled"><span class="toggle-text">Enable Visualizer</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_centerText"><span class="toggle-text">Center Layout</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="viz_debugFps"><span class="toggle-text">Show FPS</span></label>
+                    </div>
+
+                    <div class="guide-box">
+                        <strong>🎬 OBS Integration Guide</strong>
+                        <p style="margin-top: 8px; margin-bottom: 0;">1. Add a new <strong>Browser Source</strong> in OBS.<br>
+                        2. Set the URL to: <code id="guide_url">http://127.0.0.1:3000/</code><br>
+                        3. Set Width to <code>1360</code> and Height to <code>440</code>.<br>
+                        4. <i>Pro Tip:</i> Add <code>?visualizer=false</code> or <code>?progress=false</code> to the end of the URL to dynamically hide elements without changing the master layout!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="deploy-zone">
+                <button type="submit">Deploy Changes</button>
+                <div id="status">DEPLOYED SUCCESSFULLY</div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('settingsForm'), status = document.getElementById('status');
+        
+        const toHex = (c) => {
+            if (!c || c === "transparent") return "#ffffff";
+            if (c.startsWith("#")) return c.substring(0, 7);
+            const m = c.match(/\d+/g);
+            if (!m) return "#ffffff";
+            return "#" + m.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+        };
+
+        const hexToRgba = (hex, alpha) => {
+            if (!hex || !hex.startsWith("#")) return `rgba(255,255,255,${alpha})`;
+            const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        };
+
+        const el = (id) => document.getElementById(id);
+        let g_audioDevice = "default";
+        let initialPort = 3000;
+
+        el('sys_port').addEventListener('input', (e) => {
+            const val = e.target.value || '3000';
+            el('guide_url').innerText = `http://127.0.0.1:${val}/`;
+        });
+
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings'); 
+                const state = await res.json();
+                const o = state.overlay || {};
+                const v = o.visualizer || {};
+
+                const setS = (id, val) => { const e = el(id); if(e) e.value = val; };
+                const setC = (id, val) => { const e = el(id); if(e) e.checked = !!val; };
+                const setT = (id, val) => { const e = el(id); if(e) e.innerText = val; };
+
+                setS('sys_code', state.code || "");
+                setS('sys_port', o.port ?? 3000);
+                initialPort = o.port ?? 3000;
+                
+                g_audioDevice = v.audioDevice || "default";
+                setC('sys_overlayEnabled', o.enabled);
+                setC('sys_vizEnabled', v.enabled);
+
+                setS('viz_mode', v.mode || "bars");
+                setS('viz_bars', v.bars ?? 96);
+                setT('val_bars', v.bars ?? 96);
+                setS('viz_barWidth', v.barWidth ?? 10);
+                setS('viz_barGap', v.barGap ?? 5);
+                setS('viz_samples', v.samples ?? 4096);
+                setT('val_samples', v.samples ?? 4096);
+                setC('viz_rounded', v.rounded);
+                setC('viz_glow', v.glow);
+
+                setS('overlay_layout', o.layout || "full");
+                setS('viz_gradTop', toHex(v.gradient?.top || "#7cf6ff"));
+                setS('viz_gradBottom', toHex(v.gradient?.bottom || "#1a69a8"));
+                setS('overlay_textColor', toHex(o.textColor || "#ffffff"));
+                setS('overlay_borderColor', toHex(o.borderColor || "transparent"));
+                setS('overlay_elementColor', toHex(o.elementColor || "rgba(255,255,255,0.15)"));
+
+                setS('overlay_backgroundOpacity', o.backgroundOpacity ?? 0.85);
+                setT('val_bgOp', o.backgroundOpacity ?? 0.85);
+
+                let bgS = "none";
+                if (o.showThumbnailBackground) bgS = "cover";
+                else if (o.showBackground) bgS = "blur";
+                setS('overlay_bgStyle', bgS);
+
+                const fxOp = o.showThumbnailBackground ? (o.thumbnailBackgroundOpacity ?? 0.3) : (o.thumbnailOpacity ?? 0.5);
+                setS('overlay_thumbOpacity', fxOp);
+                setT('val_thumbOp', fxOp);
+
+                setC('overlay_globalSync', o.globalSync);
+                setC('overlay_centerText', o.centerText);
+                setC('bg_grad_random', v.gradient?.random);
+
+                setS('viz_sensitivity', v.sensitivity ?? 40);
+                setT('val_sens', v.sensitivity ?? 40);
+                setS('viz_multiplier', v.multiplier ?? 40);
+                setT('val_mult', v.multiplier ?? 40);
+                setS('viz_smoothing', v.smoothing ?? 6);
+                setT('val_smooth', v.smoothing ?? 6);
+                setC('viz_debugFps', v.debugFps);
+                setS('viz_fps', v.fps ?? 60);
+                setT('val_fps', v.fps ?? 60);
+
+            } catch (e) { console.error(e); }
+        }
+
+        async function saveSettings() {
+            try {
+                const getV = (id) => el(id)?.value;
+                const getC = (id) => !!el(id)?.checked;
+                const getN = (id, def) => { const v = parseInt(getV(id)); return isNaN(v) ? def : v; };
+
+                const style = getV('overlay_bgStyle');
+                const fxOp = parseFloat(getV('overlay_thumbOpacity'));
+                const newPort = getN('sys_port', 3000);
+
+                const payload = {
+                    code: getV('sys_code'),
+                    userId: "", // Deprecated, but satisfying struct schema if required
+                    overlay: {
+                        enabled: getC('sys_overlayEnabled'),
+                        port: newPort,
+                        layout: getV('overlay_layout'),
+                        showBackground: style === "blur",
+                        showThumbnailBackground: style === "cover",
+                        backgroundOpacity: parseFloat(getV('overlay_backgroundOpacity')),
+                        thumbnailOpacity: style === "blur" ? fxOp : 0.5,
+                        thumbnailBackgroundOpacity: style === "cover" ? fxOp : 0.3,
+                        centerText: getC('overlay_centerText'),
+                        globalSync: getC('overlay_globalSync'),
+                        textColor: getV('overlay_textColor'),
+                        borderColor: getV('overlay_borderColor') === "#ffffff" ? "transparent" : getV('overlay_borderColor'),
+                        elementColor: hexToRgba(getV('overlay_elementColor'), 0.2),
+                        background: {
+                            enabled: true,
+                            color: "#0c0c0e",
+                            useGradient: false,
+                            gradient: {
+                                isStatic: false,
+                                random: getC('bg_grad_random'),
+                                top: getV('viz_gradTop'),
+                                bottom: getV('viz_gradBottom')
+                            }
+                        },
+                        visualizer: {
+                            enabled: getC('sys_vizEnabled'),
+                            debugFps: getC('viz_debugFps'),
+                            audioDevice: g_audioDevice,
+                            sampleRate: 48000,
+                            samples: getN('viz_samples', 4096),
+                            bars: getN('viz_bars', 96),
+                            smoothing: getN('viz_smoothing', 6),
+                            sensitivity: getN('viz_sensitivity', 40),
+                            multiplier: getN('viz_multiplier', 40),
+                            audioReactionDelay: 3,
+                            visualFluidity: 0.25,
+                            barWidth: getN('viz_barWidth', 10),
+                            barGap: getN('viz_barGap', 5),
+                            gradient: {
+                                isStatic: false,
+                                random: getC('bg_grad_random'),
+                                top: getV('viz_gradTop'),
+                                bottom: getV('viz_gradBottom')
+                            },
+                            mode: getV('viz_mode'),
+                            glow: getC('viz_glow'),
+                            rounded: getC('viz_rounded'),
+                            toggleAnimation: true,
+                            horizontalSmoothing: true, // Hardcoded to true for native Monstercat feel
+                            animationSpeed: 1.0,
+                            fps: getN('viz_fps', 60)
+                        }
+                    }
+                };
+
+                const res = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!res.ok) throw new Error(await res.text());
+                
+                status.innerText = "DEPLOYED SUCCESSFULLY"; status.className = 'status-ok';
+                setTimeout(() => status.className = '', 5000);
+
+                if (newPort !== initialPort) {
+                    alert(`Overlay Port has been changed from ${initialPort} to ${newPort}.\n\nYou must completely restart the T_Music_Bot RPC application for the new port to take effect!`);
+                    initialPort = newPort;
+                }
+
+            } catch (e) { alert("Save Error: " + e.message); }
+        }
+        
+        form.onsubmit = (e) => { e.preventDefault(); saveSettings(); }; 
+        loadSettings();
+    </script>
+</body>
+</html>
