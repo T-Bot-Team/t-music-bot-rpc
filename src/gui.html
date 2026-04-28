@@ -45,7 +45,8 @@
             padding-bottom: 40px;
         }
         .header-left { display: flex; align-items: center; gap: 20px; }
-        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); opacity: 0; transition: opacity 0.4s ease; }
+        .header-left img.loaded { opacity: 1; }
         h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
         .badge { background: var(--surface-raised); border: 1px solid var(--border); color: var(--accent); padding: 6px 14px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; }
 
@@ -240,6 +241,13 @@
                         </select>
                     </div>
                     <div class="field">
+                        <label>Frequency Mapping</label>
+                        <select id="viz_type">
+                            <option value="logarithmic">Logarithmic (Musical)</option>
+                            <option value="linear">Linear (Accurate)</option>
+                        </select>
+                    </div>
+                    <div class="field">
                         <label>Bar Count <span class="val-display" id="val_bars">96</span></label>
                         <input type="range" min="10" max="256" step="2" id="viz_bars" oninput="const v=document.getElementById('val_bars'); if(v) v.innerText=this.value">
                     </div>
@@ -419,6 +427,7 @@
                 setC('sys_vizEnabled', v.enabled);
 
                 setS('viz_mode', v.mode || "bars");
+                setS('viz_type', v.visualizerType || "logarithmic");
                 setS('viz_bars', v.bars ?? 96);
                 setT('val_bars', v.bars ?? 96);
                 setS('viz_barWidth', v.barWidth ?? 10);
@@ -523,6 +532,7 @@
                                 bottom: getV('viz_gradBottom')
                             },
                             mode: getV('viz_mode'),
+                            visualizerType: getV('viz_type'),
                             glow: getC('viz_glow'),
                             rounded: getC('viz_rounded'),
                             toggleAnimation: true,
@@ -549,6 +559,14 @@
         
         form.onsubmit = (e) => { e.preventDefault(); saveSettings(); }; 
         loadSettings();
+
+        // 🚀 INSTANT LOGO PRELOADER
+        const logo = document.querySelector('.header-left img');
+        if (logo) {
+            const temp = new Image();
+            temp.onload = () => logo.classList.add('loaded');
+            temp.src = logo.src;
+        }
     </script>
 </body>
 </html>

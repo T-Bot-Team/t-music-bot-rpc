@@ -237,34 +237,42 @@ pub fn get_html(
         
         #img-container {{ flex-shrink: 0; position: relative; width: {thumb_size}; height: {thumb_size}; z-index: 10; display: {show_thumb_style}; }}
         #track-img-wrapper {{ width: 100%; height: 100%; border-radius: var(--inner-radius); overflow: hidden; position: relative; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: box-shadow 0.3s ease; }}
-        #track-img {{ width: 100%; height: 100%; object-fit: cover; }}
-        
-        #avatar-img {{ position: absolute; top: -15px; left: -15px; width: 110px; height: 110px; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: none; transition: all 0.3s ease; }}
-        #widget.compact-minimal #avatar-img {{ width: 56px; height: 56px; top: -10px; left: -10px; }}
-        #widget.compact-bar #avatar-img {{ width: 72px; height: 72px; top: -12px; left: -12px; }}
+        #track-img {{ width: 100%; height: 100%; object-fit: cover; transition: opacity 0.4s ease; opacity: 1; }}
+        #track-img.loading {{ opacity: 0; }}
+
+        #avatar-img {{ position: absolute; top: -15px; left: -15px; width: 110px; height: 110px; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: none; transition: opacity 0.4s ease; opacity: 1; }}
+        #avatar-img.loading {{ opacity: 0; }}
 
         #info {{ display: flex; flex-direction: column; justify-content: center; min-height: 100px; flex-grow: 1; min-width: 0; transition: all 0.3s ease; }}
         #info.centered {{ align-items: center; text-align: center; }}
         #text-wrapper {{ display: flex; flex-direction: column; gap: 4px; overflow: visible; width: 100%; box-sizing: border-box; }}
+
+        #title {{ font-weight: bold; font-size: {title_size}; margin: 0; padding-bottom: 0.15em; white-space: nowrap; line-height: normal; text-shadow: 0 4px 12px rgba(0,0,0,0.9); transition: color 0.3s ease; overflow: hidden; position: relative; width: 100%; }}
+        #title span {{ display: inline-block; min-width: 100%; }}
         
-        #title {{ font-weight: bold; font-size: {title_size}; margin: 0; padding-bottom: 0.15em; white-space: nowrap; line-height: normal; text-shadow: 0 4px 12px rgba(0,0,0,0.9); transition: color 0.3s ease; overflow: visible; }}
-        #title.fade-edge {{ -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%); mask-image: linear-gradient(to right, black 85%, transparent 100%); }}
-        
+        /* 🚀 SCROLLING ANIMATION */
+        @keyframes scrollText {{
+            0%, 15% {{ transform: translateX(0); }}
+            85%, 100% {{ transform: translateX(var(--scroll-dist)); }}
+        }}
+        #title.scrolling span {{ animation: scrollText 12s ease-in-out infinite alternate; }}
+        #title.fade-edge {{ -webkit-mask-image: linear-gradient(to right, black 94%, transparent 100%); mask-image: linear-gradient(to right, black 94%, transparent 100%); }}
+
         #artist {{ font-size: {artist_size}; color: rgba(255,255,255,0.7); margin: 0; white-space: nowrap; overflow: hidden; text-shadow: 0 2px 8px rgba(0,0,0,0.8); -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%); mask-image: linear-gradient(to right, black 85%, transparent 100%); }}
         #progress-area {{ display: none; align-items: center; width: 100%; gap: 15px; margin-top: 15px; opacity: 0; transition: opacity 0.4s ease; }}
         #progress-area.visible {{ display: {show_progress_style} !important; opacity: 1; }}
         #progress-container {{ flex-grow: 1; height: 24px; background: {element_color}; border-radius: 50px; overflow: hidden; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); min-width: 200px; }}
         #progress-bar {{ width: 0%; height: 100%; border-radius: 50px; transition: width 0.1s linear, background 0.3s ease; }}
         #time-text {{ font-size: calc({artist_size} * 0.9); font-weight: 700; font-variant-numeric: tabular-nums; text-shadow: 0 2px 5px rgba(0,0,0,0.8); white-space: nowrap; }}
-        
+
         #live-indicator {{ display: none; align-items: center; justify-content: flex-end; gap: 12px; color: #ff4444; font-weight: bold; font-size: calc({artist_size} * 0.7); text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 15px rgba(255,68,68,0.4); margin-top: 5px; width: 100%; }}
         #live-indicator.visible {{ display: flex; }}
         #live-dot {{ width: 12px; height: 12px; background-color: #ff4444; border-radius: 50%; box-shadow: 0 0 10px #ff4444; animation: pulse 1.5s infinite; }}
         @keyframes pulse {{ 0% {{ transform: scale(1); opacity: 1; }} 50% {{ transform: scale(1.3); opacity: 0.5; }} 100% {{ transform: scale(1); opacity: 1; }} }}
-        
+
         #viz-canvas {{ display: {viz_display}; margin-top: 15px; width: 100%; height: 100px; visibility: {viz_global_enabled}; opacity: {viz_opacity}; transition: opacity 0.4s ease, visibility 0.4s ease; }}
         #fps-text {{ position: absolute; bottom: 10px; right: 20px; font-size: 1.2em; color: rgba(255,255,255,0.3); font-family: monospace; display: {debug_display}; z-index: 1000; }}
-        
+
         #widget.idle #img-container, #widget.offline #img-container {{ display: none !important; }}
         #widget.idle #info, #widget.offline #info {{ justify-content: center; text-align: center; align-items: center; min-height: 100px; }}
         #widget.idle #progress-area, #widget.idle #viz-canvas, #widget.idle #fps-text,
@@ -279,14 +287,14 @@ pub fn get_html(
                 <div id="track-img-wrapper"><img id="track-img" src="/assets/music.png" crossorigin="anonymous" /></div>
             </div>
             <div id="info" class="{center_class}">
-                <div id="text-wrapper"><div id="title">Server Offline</div><div id="artist">Waiting for Rust...</div></div>
+                <div id="text-wrapper"><div id="title"><span>Server Offline</span></div><div id="artist">Waiting for Rust...</div></div>
                 <div id="live-indicator"><div id="live-dot"></div><span>LIVE</span></div>
                 <div id="progress-area"><div id="progress-container"><div id="progress-bar"></div></div><div id="time-text">0:00 / 0:00</div></div>
                 <canvas id="viz-canvas"></canvas>
             </div>
             <div id="fps-text">0 FPS</div>
         </div>
-    </div><script>
+        </div><script>
         const urlParams = new URLSearchParams(window.location.search);
         const overrideViz = urlParams.get('visualizer');
         const overrideProgress = urlParams.get('progress');
@@ -294,7 +302,7 @@ pub fn get_html(
         let track = {track_json}, bins = new Uint8Array({bars}).fill(0), isOffline = true;
         const widget = document.getElementById("widget"), bgBlur = document.getElementById("bg-blur"), bgFull = document.getElementById("bg-full");
         const canvas = document.getElementById("viz-canvas"), ctx = canvas.getContext("2d", {{ alpha: true }});
-        
+
         const progressArea = document.getElementById("progress-area");
         if (overrideProgress === 'false' && progressArea) progressArea.style.display = 'none';
 
@@ -308,14 +316,31 @@ pub fn get_html(
         const avatarImg = document.getElementById('avatar-img');
 
         function updateTitleFade() {{
+            titleEl.classList.remove('scrolling');
+            titleEl.style.transform = "translateX(0)";
+            
             if (titleEl.scrollWidth > titleEl.clientWidth) {{
                 titleEl.classList.add('fade-edge');
+                const dist = titleEl.scrollWidth - titleEl.clientWidth;
+                titleEl.style.setProperty('--scroll-dist', `-${{dist + 20}}px`);
+                titleEl.classList.add('scrolling');
             }} else {{
                 titleEl.classList.remove('fade-edge');
             }}
         }}
 
         window.addEventListener('resize', updateTitleFade);
+
+        function updateImageSmoothly(el, newSrc) {{
+            if (!newSrc || el.src === newSrc || (newSrc.startsWith('/') && !newSrc.startsWith('//') && el.src.endsWith(newSrc))) return;
+            el.classList.add('loading');
+            const temp = new Image();
+            temp.onload = () => {{
+                el.src = newSrc;
+                el.classList.remove('loading');
+            }};
+            temp.src = newSrc;
+        }}
 
         trackImg.onload = () => {{
             if (trackImg.src.endsWith('/assets/music.png')) {{
@@ -329,7 +354,7 @@ pub fn get_html(
                     const temp = document.createElement('canvas'); temp.width = 1; temp.height = 1;
                     const tCtx = temp.getContext('2d'); tCtx.drawImage(trackImg, 0, 0, 1, 1);
                     let [r, g, b] = tCtx.getImageData(0, 0, 1, 1).data;
-                    
+
                     let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
                     if (luminance < 70) {{
                         const boost = (70 - luminance) / 70;
@@ -356,9 +381,9 @@ pub fn get_html(
             const isIdle = !track || !track.details || track.details.includes("Disconnected") || track.details.includes("Resting...") || track.details.includes("Not Playing") || track.state === "Resting..." || track.state === "Not Playing";
             const isPaused = !!track.paused;
             widget.className = (isOffline ? "offline" : (isIdle ? "idle" : (isPaused ? "paused playing" : "playing"))) + " {layout_class}";
-            titleEl.innerText = isOffline ? "Server Offline" : (track.details || "Resting...");
+            titleEl.innerHTML = `<span>${{isOffline ? "Server Offline" : (track.details || "Resting...")}}</span>`;
             document.getElementById("artist").innerText = isOffline ? "Waiting for connection..." : (track.state || "Browsing for music");
-            
+
             updateTitleFade();
 
             if (isIdle || isPaused || isOffline) {{
@@ -367,8 +392,18 @@ pub fn get_html(
                 canvas.style.opacity = '1'; canvas.style.visibility = 'visible';
             }}
 
+            if (mode === "background" || mode === "sides" || mode === "mirrored") {{
+                canvas.style.position = "absolute"; canvas.style.inset = "0"; canvas.style.width = "100%"; canvas.style.height = "100%"; canvas.style.zIndex = "-1"; canvas.style.pointerEvents = "none";
+                canvas.style.margin = "0";
+            }} else {{
+                canvas.style.position = "relative"; canvas.style.inset = "auto"; canvas.style.width = "100%"; canvas.style.height = "100px"; canvas.style.zIndex = "1"; canvas.style.pointerEvents = "auto";
+                canvas.style.marginTop = "15px";
+            }}
+
             const thumb = (isIdle || isOffline) ? "/assets/music.png" : (track.thumbnail || "/assets/music.png");
-            trackImg.src = thumb; 
+            updateImageSmoothly(trackImg, thumb);
+            updateImageSmoothly(avatarImg, "/assets/avatar.png");
+
             if({show_bg_blur}) {{ bgBlur.style.backgroundImage = `url("${{thumb}}")`; bgBlur.classList.add("visible"); }} else {{ bgBlur.classList.remove("visible"); }}
             if({show_thumb_bg}) {{ bgFull.style.backgroundImage = `url("${{thumb}}")`; bgFull.classList.add("visible"); }} else {{ bgFull.classList.remove("visible"); }}
         }}
@@ -385,7 +420,7 @@ pub fn get_html(
             socket.onclose = () => {{ isOffline = true; updateUI(); setTimeout(connect, 2000); }};
         }}
 
-        const BARS = {bars}, heights = new Float32Array(BARS).fill(0), DPR = Math.max(window.devicePixelRatio || 1, 2); 
+        const BARS = {bars}, heights = new Float32Array(BARS).fill(0), DPR = window.devicePixelRatio || 1; 
         let lastFrame = performance.now(), frameCount = 0, lastFpsUpdate = lastFrame;
         const targetFps = {viz_fps};
         const frameInterval = 1000 / targetFps;
@@ -394,8 +429,9 @@ pub fn get_html(
             requestAnimationFrame(draw);
             
             const elapsed = now - lastFrame;
-            if (elapsed < frameInterval) return;
-            lastFrame = now - (elapsed % frameInterval);
+            // 🚀 REAL-TIME OPTIMIZATION: Allow 1ms tolerance to prevent refresh rate desync
+            if (targetFps < 240 && elapsed < frameInterval - 1) return;
+            lastFrame = now;
 
             if (isOffline) return;
             
@@ -433,19 +469,29 @@ pub fn get_html(
             }} else {{ progressArea.classList.remove("visible"); liveIndicator.classList.remove("visible"); }}
 
             const baseW = 1360, baseH = 440;
-            if (canvas.width !== baseW * DPR) {{ canvas.width = baseW * DPR; canvas.height = baseH * DPR; }}
-            ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, baseW, baseH);
+            // 🎯 QUALITY FIX: Ensure canvas internal resolution perfectly matches display size for 4K+
+            const rect = canvas.getBoundingClientRect();
+            const displayW = rect.width || baseW;
+            const displayH = rect.height || 100;
+            
+            if (canvas.width !== Math.floor(displayW * DPR) || canvas.height !== Math.floor(displayH * DPR)) {{
+                canvas.width = Math.floor(displayW * DPR);
+                canvas.height = Math.floor(displayH * DPR);
+            }}
+            
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            ctx.clearRect(0, 0, displayW, displayH);
             
             if(isIdle || isPaused || isOffline || !{viz_enabled} || !{show_viz_layout} || overrideViz === 'false') return;
 
-            const totalUnits = ({bar_w} * BARS) + ({bar_g} * (BARS - 1)), barW = (baseW / totalUnits) * {bar_w}, gap = (baseW / totalUnits) * {bar_g};
+            const totalUnits = ({bar_w} * BARS) + ({bar_g} * (BARS - 1)), barW = (displayW / totalUnits) * {bar_w}, gap = (displayW / totalUnits) * {bar_g};
             const physicsEnabled = {viz_physics};
-            const barGrad = ctx.createLinearGradient(0, 0, 0, baseH); barGrad.addColorStop(0, cTop); barGrad.addColorStop(1, cBot);
+            const barGrad = ctx.createLinearGradient(0, 0, 0, displayH); barGrad.addColorStop(0, cTop); barGrad.addColorStop(1, cBot);
 
             for(let i=0; i<BARS; i++) {{
-                let target = (bins[i] / 255) * baseH;
+                let target = (bins[i] / 255) * displayH;
                 if (physicsEnabled) {{
-                    const l = i > 0 ? (bins[i-1] / 255) * baseH : 0, r = i < BARS - 1 ? (bins[i+1] / 255) * baseH : 0;
+                    const l = i > 0 ? (bins[i-1] / 255) * displayH : 0, r = i < BARS - 1 ? (bins[i+1] / 255) * displayH : 0;
                     if (l * 0.75 > target) target = l * 0.75; if (r * 0.75 > target) target = r * 0.75;
                     if (target > heights[i]) heights[i] = target; else heights[i] -= (heights[i] - target) * 0.22;
                 }} else {{
@@ -453,36 +499,37 @@ pub fn get_html(
                 }}
             }}
 
-            if ({viz_glow}) {{ ctx.shadowBlur = 15; ctx.shadowColor = cTop; }}
+            // 🚀 PERFORMANCE FIX: Apply glow globally instead of per-path
+            if ({viz_glow}) {{ ctx.shadowBlur = 15 * DPR; ctx.shadowColor = cTop; }}
             ctx.fillStyle = barGrad; ctx.strokeStyle = barGrad;
             
             if (mode === "background") {{
                 const r = {rounded} ? Math.min(barW / 2, 6) : 0; ctx.beginPath();
-                const maxHeight = baseH * 0.70; // Fill bottom 70% max
-                for(let i=0; i<BARS; i++) {{ const h = Math.max(4, (heights[i] / baseH) * maxHeight), x = i * (barW + gap), y = baseH - h; if (r > 0) ctx.roundRect(x, y, barW, h, [r, r, 0, 0]); else ctx.rect(x, y, barW, h); }}
+                const maxHeight = displayH * 0.70;
+                for(let i=0; i<BARS; i++) {{ const h = Math.max(4, (heights[i] / displayH) * maxHeight), x = i * (barW + gap), y = displayH - h; if (r > 0) ctx.roundRect(x, y, barW, h, [r, r, 0, 0]); else ctx.rect(x, y, barW, h); }}
                 ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1.0;
             }} else if (mode === "wave") {{
                 ctx.lineWidth = 6; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.beginPath();
-                const pts = []; for(let i=0; i<BARS; i++) pts.push({{x: i * (barW + gap) + barW/2, y: baseH - Math.max(4, heights[i])}});
+                const pts = []; for(let i=0; i<BARS; i++) pts.push({{x: i * (barW + gap) + barW/2, y: displayH - Math.max(4, heights[i])}});
                 if(pts.length > 0) {{
                     ctx.moveTo(pts[0].x, pts[0].y);
                     for (let i = 0; i < pts.length - 1; i++) {{
                         const xc = (pts[i].x + pts[i + 1].x) / 2, yc = (pts[i].y + pts[i + 1].y) / 2;
                         ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
                     }}
-                    ctx.stroke(); ctx.lineTo(baseW, baseH); ctx.lineTo(0, baseH); ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0;
+                    ctx.stroke(); ctx.lineTo(displayW, displayH); ctx.lineTo(0, displayH); ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0;
                 }}
             }} else if (mode === "neon") {{
                 ctx.lineWidth = 2;
                 for(let i=0; i<BARS; i++) {{
                     const h = Math.max(4, heights[i]);
-                    ctx.strokeRect(i*(barW+gap), baseH - h, barW, h);
+                    ctx.strokeRect(i*(barW+gap), displayH - h, barW, h);
                 }}
             }} else if (mode === "led") {{
                 const dotH = 6;
                 for(let i=0; i<BARS; i++) {{
                     const h = Math.max(4, heights[i]);
-                    for(let y = baseH; y > baseH - h; y -= dotH + 2) {{
+                    for(let y = displayH; y > displayH - h; y -= dotH + 2) {{
                         ctx.fillRect(i*(barW+gap), y - dotH, barW, dotH);
                     }}
                 }}
@@ -490,43 +537,43 @@ pub fn get_html(
                 ctx.lineWidth = 2; ctx.beginPath();
                 for(let i=0; i<BARS; i++) {{
                     const h = Math.max(4, heights[i]);
-                    const x = i*(barW+gap), y = baseH-h;
+                    const x = i*(barW+gap), y = displayH-h;
                     if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                     ctx.lineTo(x+barW, y);
                 }}
                 ctx.stroke();
             }} else if (mode === "center-bars") {{
-                const rC = {rounded} ? Math.min(barW / 2, 6) : 0; const midY = baseH / 2; ctx.beginPath();
+                const rC = {rounded} ? Math.min(barW / 2, 6) : 0; const midY = displayH / 2; ctx.beginPath();
                 for(let i=0; i<BARS; i++) {{ const h = Math.max(4, heights[i]) / 2, x = i * (barW + gap); if (rC > 0) ctx.roundRect(x, midY - h, barW, h * 2, [rC, rC, rC, rC]); else ctx.rect(x, midY - h, barW, h * 2); }}
                 ctx.fill();
             }} else if (mode === "mirrored") {{
                 const r = {rounded} ? Math.min(barW / 2, 6) : 0;
                 ctx.beginPath();
                 for(let i=0; i<BARS; i++) {{
-                    const curH = Math.max(4, (heights[i] / baseH) * (baseH * 0.30)); // 30% max height per side (leaves 40% gap in middle)
+                    const curH = Math.max(4, (heights[i] / displayH) * (displayH * 0.30));
                     const x = i * (barW + gap);
                     if (r > 0) {{
                         ctx.roundRect(x, 0, barW, curH, [0, 0, r, r]);
-                        ctx.roundRect(x, baseH - curH, barW, curH, [r, r, 0, 0]);
+                        ctx.roundRect(x, displayH - curH, barW, curH, [r, r, 0, 0]);
                     }} else {{
                         ctx.rect(x, 0, barW, curH);
-                        ctx.rect(x, baseH - curH, barW, curH);
+                        ctx.rect(x, displayH - curH, barW, curH);
                     }}
                 }}
                 ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1.0;
             }} else if (mode === "sides") {{
-                const sideBarH = baseH / BARS;
+                const sideBarH = displayH / BARS;
                 ctx.beginPath();
                 for(let i=0; i<BARS; i++) {{
-                    const curW = Math.max(4, (heights[i] / baseH) * (baseW * 0.15)); // 15% max width per side
+                    const curW = Math.max(4, (heights[i] / displayH) * (displayW * 0.15));
                     const y = i * sideBarH;
                     ctx.rect(0, y, curW, sideBarH - 2);
-                    ctx.rect(baseW - curW, y, curW, sideBarH - 2);
+                    ctx.rect(displayW - curW, y, curW, sideBarH - 2);
                 }}
                 ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1.0;
             }} else {{
                 const r = {rounded} ? Math.min(barW / 2, 6) : 0; ctx.beginPath();
-                for(let i=0; i<BARS; i++) {{ const h = Math.max(4, heights[i]), x = i * (barW + gap), y = baseH - h; if (r > 0) ctx.roundRect(x, y, barW, h, [r, r, 0, 0]); else ctx.rect(x, y, barW, h); }}
+                for(let i=0; i<BARS; i++) {{ const h = Math.max(4, heights[i]), x = i * (barW + gap), y = displayH - h; if (r > 0) ctx.roundRect(x, y, barW, h, [r, r, 0, 0]); else ctx.rect(x, y, barW, h); }}
                 ctx.fill();
             }}
             ctx.shadowBlur = 0; frameCount++;

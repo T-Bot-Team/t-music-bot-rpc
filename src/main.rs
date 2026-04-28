@@ -44,7 +44,7 @@ fn main() {
     }
     
     info!("=======================================================");
-    info!("   T_Music_Bot RPC (RUST)   ");
+    info!("   T_Music_Bot RPC   ");
     info!("=======================================================");
 
     let settings = config::load_settings();

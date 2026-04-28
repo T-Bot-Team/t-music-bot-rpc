@@ -103,8 +103,11 @@ pub struct VisualizerConfig {
     pub animation_speed: f32,
     #[serde(default = "default_fps")]
     pub fps: u32,
+    #[serde(default = "default_viz_type")]
+    pub visualizer_type: String,
 }
 
+fn default_viz_type() -> String { "logarithmic".to_string() }
 fn default_smoothing() -> u32 { 6 }
 fn default_device() -> String { "default".to_string() }
 fn default_sample_rate() -> u32 { 48000 }
@@ -142,6 +145,7 @@ impl Default for VisualizerConfig {
             horizontal_smoothing: true,
             animation_speed: default_animation_speed(),
             fps: 60,
+            visualizer_type: default_viz_type(),
         }
     }
 }

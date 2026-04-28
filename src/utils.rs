@@ -89,6 +89,16 @@ pub fn format_overlay_track(mut data: crate::config::TrackUpdate) -> crate::conf
 }
 
 pub fn format_rpc_track(mut data: crate::config::TrackUpdate) -> crate::config::TrackUpdate {
+    // 🚨 DETECT IDLE STATES TO CLEAR RPC
+    let is_idle = data.details.as_deref().map(|d| d.contains("Disconnected") || d.contains("Resting...") || d.contains("Not Playing")).unwrap_or(false)
+               || data.state.as_deref().map(|s| s.contains("Resting...") || s.contains("Not Playing")).unwrap_or(false);
+
+    if is_idle {
+        data.details = None;
+        data.state = None;
+        return data;
+    }
+
     if let (Some(d), Some(s)) = (data.details.as_mut(), data.state.as_mut()) {
         let mut artist_name = s.clone();
         if artist_name.to_lowercase().starts_with("by ") {

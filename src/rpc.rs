@@ -28,6 +28,8 @@ pub async fn start_rpc_handler(state: AppState) {
     std::thread::spawn(move || { run_discord_worker(state_worker, rpc_rx); });
 
     loop {
+        if state.read().await.is_shutting_down { break; }
+        
         info!("[WS] Connecting...");
         { let mut s = state.write().await; s.ws_status = "Connecting...".to_string(); }
         
@@ -45,6 +47,8 @@ pub async fn start_rpc_handler(state: AppState) {
                 let _ = ws_stream.send(Message::Text(json!({"type": "connect"}).to_string().into())).await;
 
                 loop {
+                    if state.read().await.is_shutting_down { break; }
+                    
                     tokio::select! {
                         out_msg = msg_rx.recv() => {
                             if let Some(m) = out_msg { if ws_stream.send(m).await.is_err() { break; } }
@@ -103,9 +107,20 @@ fn run_discord_worker(state: AppState, mut rx: mpsc::Receiver<RpcCommand>) {
     let mut client: Option<DiscordIpcClient> = None;
     let mut last_update = Instant::now() - Duration::from_secs(60);
     let mut queued: Option<TrackUpdate> = None;
-    let mut active_client_id: Option<String> = None; // Track the ID to auto-reconnect
+    let mut active_client_id: Option<String> = None;
+    let mut current_activity_cleared = true;
+    let mut current_end_timestamp: Option<f64> = None;
 
     loop {
+        // 🚨 CHECK FOR SHUTDOWN
+        if state.blocking_read().is_shutting_down {
+            if let Some(mut c) = client.take() {
+                let _ = c.clear_activity();
+                let _ = c.close();
+            }
+            break;
+        }
+
         while let Ok(cmd) = rx.try_recv() {
             match cmd {
                 RpcCommand::Connect(id) => {
@@ -116,7 +131,6 @@ fn run_discord_worker(state: AppState, mut rx: mpsc::Receiver<RpcCommand>) {
                     }
                     if let Some(mut old) = client.take() { let _ = old.close(); }
                     
-                    // Initial connection attempt
                     if let Ok(mut c) = DiscordIpcClient::new(&id) {
                         if c.connect().is_ok() {
                             info!("[RPC] Connected to Discord");
@@ -125,12 +139,13 @@ fn run_discord_worker(state: AppState, mut rx: mpsc::Receiver<RpcCommand>) {
                         }
                     }
                 }
-                RpcCommand::Update(track) => { queued = Some(track); }
+                RpcCommand::Update(track) => { 
+                    current_end_timestamp = track.end_timestamp;
+                    queued = Some(track); 
+                }
             }
         }
 
-        // 🚨 THE FIX: AUTO-RECONNECT
-        // If we have an ID but client died or failed to connect, try again
         if client.is_none() {
             if let Some(id) = &active_client_id {
                 if let Ok(mut c) = DiscordIpcClient::new(id) {
@@ -143,16 +158,44 @@ fn run_discord_worker(state: AppState, mut rx: mpsc::Receiver<RpcCommand>) {
             }
         }
 
+        // 🚨 AUTO-CLEAR TRACK IF FINISHED
+        if !current_activity_cleared {
+            if let Some(end) = current_end_timestamp {
+                let now_unix = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs_f64();
+                
+                if now_unix > end + 2.0 {
+                    if let Some(c) = &mut client {
+                        let _ = c.clear_activity();
+                        info!("[RPC] Track finished (Auto-cleared)");
+                        current_activity_cleared = true;
+                        current_end_timestamp = None;
+                    }
+                }
+            }
+        }
+
         if let (Some(c), Some(track)) = (&mut client, queued.take()) {
             if last_update.elapsed() >= DISCORD_RATELIMIT {
+                let is_idle_update = track.details.is_none() && track.state.is_none();
+                
+                // Only send clear if we haven't already cleared it
+                if is_idle_update && current_activity_cleared {
+                    last_update = Instant::now();
+                    continue; 
+                }
+
                 if let Err(e) = update_discord_activity_raw(c, &track) {
                     info!("[RPC] Connection Lost/Error: {}", e);
                     let _ = c.close(); 
-                    client = None; // Will trigger auto-reconnect on next loop
+                    client = None;
                     state.blocking_write().rpc_status = "Disconnected".to_string();
-                    queued = Some(track); // Don't drop the data
+                    queued = Some(track);
                 } else {
                     last_update = Instant::now();
+                    current_activity_cleared = is_idle_update;
                 }
             } else { queued = Some(track); }
         }
