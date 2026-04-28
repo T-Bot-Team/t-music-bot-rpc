@@ -169,6 +169,8 @@ pub struct OverlayConfig {
     pub center_text: bool,
     #[serde(default = "default_false")]
     pub global_sync: bool,
+    #[serde(default = "default_true")]
+    pub enable_text_animation: bool,
     #[serde(default = "default_text_color")]
     pub text_color: String,
     #[serde(default = "default_border_color")]
@@ -205,6 +207,7 @@ impl Default for OverlayConfig {
             thumbnail_opacity: default_thumb_opacity(),
             center_text: false,
             global_sync: false,
+            enable_text_animation: true,
             text_color: default_text_color(),
             border_color: default_border_color(),
             element_color: default_element_color(),

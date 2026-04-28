@@ -361,6 +361,7 @@
                         <label class="toggle-item"><input type="checkbox" id="sys_overlayEnabled"><span class="toggle-text">Enable Overlay</span></label>
                         <label class="toggle-item"><input type="checkbox" id="sys_vizEnabled"><span class="toggle-text">Enable Visualizer</span></label>
                         <label class="toggle-item"><input type="checkbox" id="overlay_centerText"><span class="toggle-text">Center Layout</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_textAnim"><span class="toggle-text">Text Animation</span></label>
                         <label class="toggle-item"><input type="checkbox" id="viz_debugFps"><span class="toggle-text">Show FPS</span></label>
                     </div>
 
@@ -458,6 +459,7 @@
 
                 setC('overlay_globalSync', o.globalSync);
                 setC('overlay_centerText', o.centerText);
+                setC('overlay_textAnim', o.enableTextAnimation);
                 setC('bg_grad_random', v.gradient?.random);
 
                 setS('viz_sensitivity', v.sensitivity ?? 40);
@@ -497,6 +499,7 @@
                         thumbnailBackgroundOpacity: style === "cover" ? fxOp : 0.3,
                         centerText: getC('overlay_centerText'),
                         globalSync: getC('overlay_globalSync'),
+                        enableTextAnimation: getC('overlay_textAnim'),
                         textColor: getV('overlay_textColor'),
                         borderColor: getV('overlay_borderColor') === "#ffffff" ? "transparent" : getV('overlay_borderColor'),
                         elementColor: hexToRgba(getV('overlay_elementColor'), 0.2),

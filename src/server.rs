@@ -199,6 +199,8 @@ pub fn get_html(
         _ => ("40px", "3.8em", "2.8em", "320px", "40px", true, true, true, "32px", "1360px", "440px"), 
     };
 
+    let text_anim_enabled = overlay.enable_text_animation;
+
     let show_progress_style = if show_progress_layout { "flex" } else { "none" };
 
     format!(
@@ -319,7 +321,7 @@ pub fn get_html(
             titleEl.classList.remove('scrolling');
             titleEl.style.transform = "translateX(0)";
             
-            if (titleEl.scrollWidth > titleEl.clientWidth) {{
+            if ({text_anim_enabled} && titleEl.scrollWidth > titleEl.clientWidth) {{
                 titleEl.classList.add('fade-edge');
                 const dist = titleEl.scrollWidth - titleEl.clientWidth;
                 titleEl.style.setProperty('--scroll-dist', `-${{dist + 20}}px`);
@@ -620,5 +622,6 @@ pub fn get_html(
         show_viz_layout = show_viz_layout,
         viz_fps = viz.fps,
         inner_radius = inner_radius,
+        text_anim_enabled = text_anim_enabled,
     )
 }
