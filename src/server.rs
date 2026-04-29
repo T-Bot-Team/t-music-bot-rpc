@@ -430,6 +430,9 @@ pub fn get_html(
         function draw(now) {{
             requestAnimationFrame(draw);
             
+            const isIdle = widget.classList.contains("idle");
+            if (isIdle || isOffline) return;
+
             const elapsed = now - lastFrame;
             // 🚀 REAL-TIME OPTIMIZATION: Allow 1ms tolerance to prevent refresh rate desync
             if (targetFps < 240 && elapsed < frameInterval - 1) return;
