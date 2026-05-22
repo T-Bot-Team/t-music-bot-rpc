@@ -33,6 +33,12 @@ pub fn get_html(
         format!("background: {}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;", get_css(&overlay.text_style))
     };
 
+    let text_color_fallback = if overlay.global_sync || viz.gradient.random {
+        "#ffffff".to_string()
+    } else {
+        overlay.text_style.top.clone()
+    };
+
     let border_css = if overlay.border_style.is_static {
         format!("border: 2px solid {};", overlay.border_style.top)
     } else {
@@ -192,7 +198,7 @@ pub fn get_html(
                 widget.style.transition = 'none';
                 widget.style.opacity = '0';
             }}
-            widget.className = (isOffline ? "offline" : (isIdle ? "idle" : (isPaused ? "paused playing" : "playing"))) + " {layout_class}" + (isGlobalSync && !isOffline ? " sync-active" : ""); 
+            widget.className = (isOffline ? "offline" : (isIdle ? "idle" : (isPaused ? "paused playing" : "playing"))) + " {layout_class}" + ((isGlobalSync || {is_random}) && !isOffline ? " sync-active" : ""); 
             
             titleEl.innerHTML = `<span>${{isOffline ? "Server Offline" : (hasDetails ? track.details : "Resting...")}}</span>`; 
             if (isOffline || isIdle) {{
@@ -406,7 +412,7 @@ pub fn get_html(
         artist_size = artist_size,
         show_progress_style = show_progress_style,
         element_bg = element_bg,
-        text_color_fallback = overlay.text_style.top,
+        text_color_fallback = text_color_fallback,
         viz_display = if viz.enabled && show_viz_layout { "block" } else { "none" },
         viz_global_enabled = if viz.enabled { "visible" } else { "hidden" },
         viz_opacity = if viz.enabled { 1.0 } else { 0.0 },

@@ -183,7 +183,7 @@ function applyConditionalVisibility() {
         }
     }
 
-    ['viz', 'acc', 'brd'].forEach(prefix => {
+    ['viz', 'acc', 'brd', 'txt'].forEach(prefix => {
         const card = el(`row_${prefix}`) || el(`card_${prefix}`);
         if (card) {
             card.style.opacity = colorsLocked ? '0.65' : '1';
