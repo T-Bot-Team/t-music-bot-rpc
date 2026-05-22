@@ -8,6 +8,7 @@ macro_rules! info {
     }};
 }
 
+pub mod models;
 pub mod config;
 pub mod utils;
 pub mod server;
@@ -15,62 +16,115 @@ pub mod rpc;
 pub mod visualizer;
 pub mod tray;
 
-pub use config::*;
+pub use models::*;
+
+pub const APP_VERSION: &str = "1.1.0";
 
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use std::fs;
 
-pub struct GlobalState {
-    pub is_shutting_down: bool,
-    pub last_track: Option<TrackUpdate>,
-    pub settings: Option<Settings>,
-    pub overlay_tx: broadcast::Sender<String>,
-    pub ws_status: String,
-    pub rpc_status: String,
-}
-
-pub type AppState = Arc<RwLock<GlobalState>>;
-
 fn main() {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    
     {
+        // 🚀 TRUNCATE ON STARTUP: Keep one file, but only the latest session.
         let _ = fs::OpenOptions::new().write(true).truncate(true).create(true).open(utils::get_log_path());
+
         std::panic::set_hook(Box::new(|panic_info| {
             let msg = format!("[CRITICAL PANIC] The application crashed: {}", panic_info);
             crate::utils::log_message(&msg);
         }));
     }
-    
+
     info!("=======================================================");
     info!("   T_Music_Bot RPC   ");
     info!("=======================================================");
 
+    utils::check_for_updates();
+
     let settings = config::load_settings();
     utils::check_lock(settings.overlay.port);
-    
-    let is_first_run = settings.code.as_deref().unwrap_or("").len() != 6;
+
+    let is_first_run = {
+        let code = settings.code.as_deref().unwrap_or("");
+        let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+        code.len() != 6 && !has_token
+    };
     let port = settings.overlay.port;
-    
+
     let (overlay_tx, mut restart_rx) = broadcast::channel(4096);
+    let (viz_tx, _) = broadcast::channel(4096);
+    let (rpc_cmd_tx, rpc_cmd_rx) = std::sync::mpsc::channel();
 
     let state = Arc::new(RwLock::new(GlobalState {
         is_shutting_down: false,
         last_track: None,
+        last_rpc_raw: None,
         settings: Some(settings.clone()),
         overlay_tx: overlay_tx.clone(),
+        viz_tx: viz_tx.clone(),
+        rpc_tx: Some(rpc_cmd_tx),
         ws_status: "Disconnected".to_string(),
         rpc_status: "Disconnected".to_string(),
+        arrpc_detected: false,
+        active_pipe: None,
+        discovery_cache: None,
     }));
-
     let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
         .enable_all()
         .build()
         .unwrap();
 
-    let s1 = state.clone();
-    rt.spawn(async move { server::start_server(s1).await; });
+    // 🚀 REACTIVE SERVER HANDLER
+    let s_srv = state.clone();
+    let mut srv_restart_rx = overlay_tx.subscribe();
+    rt.spawn(async move {
+        loop {
+            let port = {
+                let s = s_srv.read().await;
+                s.settings.as_ref().unwrap().overlay.port
+            };
+            
+            let s_inst = s_srv.clone();
+            let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
+            
+            let mut server_task = tokio::spawn(async move {
+                server::start_server(s_inst, stop_rx).await;
+            });
+
+            // Wait for restart signal or server crash
+            let current_port = port;
+            loop {
+                tokio::select! {
+                    msg = srv_restart_rx.recv() => {
+                        match msg {
+                            Ok(m) => {
+                                if m.contains("settings_update") {
+                                    let new_port = {
+                                        let s = s_srv.read().await;
+                                        s.settings.as_ref().unwrap().overlay.port
+                                    };
+                                    if new_port != current_port {
+                                        info!("[Server] Port change detected ({} -> {}). Restarting...", current_port, new_port);
+                                        let _ = stop_tx.send(());
+                                        let _ = server_task.await;
+                                        break; 
+                                    }
+                                }
+                            }
+                            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(_) => break,
+                        }
+                    }
+                    _ = &mut server_task => {
+                        info!("[Server] Stopped unexpectedly.");
+                        break;
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    });
 
     if is_first_run {
         std::thread::spawn(move || {
@@ -80,7 +134,7 @@ fn main() {
     }
 
     let s2 = state.clone();
-    rt.spawn(async move { rpc::start_rpc_handler(s2).await; });
+    rt.spawn(async move { rpc::start_rpc_handler(s2, rpc_cmd_rx).await; });
 
     // 🚀 REACTIVE VISUALIZER HANDLER
     let s3 = state.clone();
@@ -94,18 +148,32 @@ fn main() {
             if config.enabled {
                 info!("[Visualizer] Starting audio capture...");
                 let abort_handle = visualizer::start_visualizer(s3.clone()).await;
+                let current_config = config.clone();
                 
                 // Wait for restart signal
-                while let Ok(msg) = restart_rx.recv().await {
-                    if msg.contains("settings_update") {
-                        info!("[Visualizer] Restart signal received. Re-initializing...");
-                        if let Some(h) = abort_handle { h.abort(); }
-                        break; 
+                loop {
+                    match restart_rx.recv().await {
+                        Ok(msg) => {
+                            if msg.contains("settings_update") {
+                                let new_config = {
+                                    let s = s3.read().await;
+                                    s.settings.as_ref().unwrap().overlay.visualizer.clone()
+                                };
+
+                                // 🚀 SELECTIVE RESTART: Only restart if a Visualizer setting actually changed
+                                if serde_json::to_string(&new_config).unwrap() != serde_json::to_string(&current_config).unwrap() {
+                                    info!("[Visualizer] Visualizer settings updated. Re-initializing...");
+                                    if let Some(h) = abort_handle { h.abort(); let _ = h.await; }
+                                    break; 
+                                }
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(_) => break,
                     }
                 }
             } else {
-                // If disabled, wait for a signal to maybe enable it
-                if let Err(_) = restart_rx.recv().await { break; }
+                let _ = restart_rx.recv().await;
             }
         }
     });
@@ -116,7 +184,11 @@ fn main() {
         let s_state = shutdown_state.clone();
         let s_tx = shutdown_tx.clone();
         std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .unwrap();
             rt.block_on(async {
                 { let mut s = s_state.write().await; s.is_shutting_down = true; }
                 let _ = s_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());

@@ -1,8 +1,10 @@
 pub mod capture;
 pub mod processor;
+pub mod fft;
+pub mod smoothing;
 
 use crate::{AppState, info};
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use tokio::task::JoinHandle;
 
 pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
@@ -71,30 +73,61 @@ pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
         let sr = stream_config.sample_rate.0 as f32;
         let channels = stream_config.channels as usize;
 
-        let tx = { state.read().await.overlay_tx.clone() };
+        let tx = { state.read().await.viz_tx.clone() };
         let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(128);
         
-        // 🚀 THE FIX: Use a channel to keep the thread alive and kill it on command
         let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(1);
+        let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<()>(1);
 
+        let state_clone = state.clone();
         std::thread::spawn(move || {
-            let _stream = capture::start_capture(&device, &stream_config, sample_format, audio_tx);
+            let stream = capture::start_capture(&device, &stream_config, sample_format, audio_tx);
             let cfg_clone = config.clone();
+            let tx_proc = tx.clone();
             
-            // Start the audio processor
-            std::thread::spawn(move || {
-                processor::run_processor(cfg_clone, audio_rx, tx, sr, channels);
+            let s_proc = state_clone.clone();
+            let processor_handle = std::thread::spawn(move || {
+                processor::run_processor(cfg_clone, audio_rx, tx_proc, sr, channels, s_proc);
             });
 
-            // Block this thread until stop_tx is dropped
-            let _ = stop_rx.blocking_recv();
-            info!("[Visualizer] Capture thread stopped.");
+            let mut is_paused = false;
+            loop {
+                match stop_rx.try_recv() {
+                    Ok(_) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
+                }
+
+                // 🚀 SMART CHECK: Wake up if music is playing OR if anyone is watching the overlay
+                let (listeners, is_playing) = {
+                    let s = state_clone.blocking_read();
+                    let is_p = s.last_track.as_ref().map(|t| t.status == "playing").unwrap_or(false);
+                    (s.overlay_tx.receiver_count(), is_p)
+                };
+
+                let should_pause = listeners == 0 || !is_playing;
+
+                if should_pause && !is_paused {
+                    let _ = stream.pause();
+                    is_paused = true;
+                } else if !should_pause && is_paused {
+                    let _ = stream.play();
+                    is_paused = false;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            
+            drop(stream);
+            let _ = processor_handle.join();
+            let _ = done_tx.blocking_send(());
         });
 
-        // Return a task that holds the Sender. When aborted, Sender drops, Thread stops.
         Some(tokio::spawn(async move {
             let _keep_alive = stop_tx;
-            std::future::pending::<()>().await;
+            tokio::select! {
+                _ = done_rx.recv() => {},
+                _ = tokio::signal::ctrl_c() => {},
+            }
         }))
     } else {
         info!("[Visualizer] FATAL: No audio device available.");

@@ -2,10 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>T_Music_Bot | Setup Guide</title>
-    <link rel="icon" type="image/png" href="/assets/avatar.png">
+    <title>T_Music_Bot | Setup</title>
+    <link rel="icon" type="image/png" href="/assets/icon.png">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+        @font-face {
+            font-family: 'Inter';
+            src: url('/assets/inter.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Inter';
+            src: url('/assets/inter-bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
         
         :root {
             --bg: #0c0c0e;
@@ -45,7 +56,7 @@
             padding-bottom: 40px;
         }
         .header-left { display: flex; align-items: center; gap: 20px; }
-        .header-left img { width: 56px; height: 56px; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+        .header-left img { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
         h1 { margin: 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
 
         .card { 
@@ -133,9 +144,37 @@
             padding-top: 20px;
             border-top: 1px solid var(--border);
         }
+
+        /* 🚀 AUTH MODAL */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+            display: none; justify-content: center; align-items: center; z-index: 20000;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-content {
+            background: var(--surface); border: 2px solid var(--border);
+            padding: 32px; border-radius: 28px; width: 90%; max-width: 450px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9); text-align: center;
+        }
+        .modal-content h2 { margin-top: 0; font-size: 1.5rem; color: var(--accent); }
+        .modal-content p { color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; }
+        .modal-content .field { text-align: left; }
+        .modal-content button { width: 100%; margin-top: 20px; }
     </style>
 </head>
 <body>
+    <div id="auth_modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Identity Verification</h2>
+            <p>Your client (arRPC / WebCord) hides your identity. For security, please verify your 18-digit Discord User ID.</p>
+            <div class="field">
+                <input type="text" id="modal_userId" placeholder="e.g. 298432708269441034" style="text-align: center; font-weight: bold; letter-spacing: 2px;">
+            </div>
+            <button type="button" id="modal_submit">Verify & Continue</button>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <div class="header-left">
@@ -152,11 +191,14 @@
                 
                 <div class="card">
                     <div class="card-header">🔗 Step 1: Discord Connection</div>
+                    
                     <div class="field">
                         <label>Pairing Code</label>
                         <input type="text" id="sys_code" placeholder="000000" maxlength="6" required autocomplete="off">
                         <div class="desc" style="margin-top: 8px;">Run <b>/rpc connect</b> in a Discord channel to get your 6-digit pairing code.</div>
                     </div>
+                    
+                    <input type="hidden" id="sys_userId">
                 </div>
 
                 <div class="card">
@@ -185,17 +227,31 @@
                                 <label>Playback Device (Audio Source)</label>
                                 <select id="sys_audioDevice">
                                     <option value="default">Default Output</option>
-                                    <!-- populated dynamically -->
                                 </select>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-header">🚀 Step 3: Discoverability</div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_desktopShortcut" checked>
+                            <span class="toggle-text">Create Desktop Shortcut</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_startMenuShortcut" checked>
+                            <span class="toggle-text">Add to Start Menu</span>
+                        </label>
+                    </div>
+                    <div class="desc" style="margin-top: 12px;">This makes it easier to find and launch the app later.</div>
+                </div>
             </div>
 
             <div class="deploy-zone">
                 <button type="submit">Complete Setup</button>
-                <div id="status">SAVED! REDIRECTING...</div>
+                <div id="status">Saved! Redirecting to the Dashboard...</div>
             </div>
         </form>
     </div>
@@ -239,10 +295,32 @@
             }
         }
 
+        async function checkStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const status = await res.json();
+                if (status.arrpcDetected) {
+                    el('auth_modal').style.display = 'flex';
+                }
+            } catch (e) {}
+        }
+        
+        el('modal_submit').onclick = () => {
+            const val = el('modal_userId').value.trim();
+            if (val) {
+                el('sys_userId').value = val;
+                el('auth_modal').style.display = 'none';
+            } else {
+                alert("User ID is required for arRPC connections.");
+            }
+        };
+
         async function saveSettings(e) {
             e.preventDefault();
             
             const codeInput = el('sys_code').value.trim();
+            const userIdInput = el('sys_userId').value.trim();
+            
             if (codeInput.length !== 6) {
                 alert("Pairing code must be exactly 6 characters.");
                 return;
@@ -253,6 +331,7 @@
                 const state = await res1.json();
                 
                 state.code = codeInput;
+                state.userId = userIdInput || undefined;
                 state.overlay.enabled = el('sys_overlayEnabled').checked;
                 state.overlay.port = parseInt(el('sys_port').value) || 3000;
                 state.overlay.visualizer.enabled = el('sys_vizEnabled').checked;
@@ -270,13 +349,15 @@
                 if (!res2.ok) throw new Error(await res2.text());
                 
                 el('status').className = 'status-ok';
-                setTimeout(() => window.location.href = '/settings', 1000);
+                const targetPort = el('sys_port').value || 3000;
+                setTimeout(() => window.location.href = `http://127.0.0.1:${targetPort}/settings`, 1000);
             } catch(e) {
                 alert("Save Error: " + e.message);
             }
         }
 
         fetchDevices();
+        checkStatus();
         el('setupForm').onsubmit = saveSettings;
     </script>
 </body>

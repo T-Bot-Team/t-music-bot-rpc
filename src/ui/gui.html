@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>T_Music_Bot | Control Center</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/png" href="/assets/icon.png">
+    <link rel="stylesheet" href="/assets/pickr.min.css"/>
+    <link rel="stylesheet" href="/ui/assets/gui.css"/>
+    <script src="/assets/pickr.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <img src="/assets/avatar.png" alt="Logo">
+                <div>
+                    <h1>Control Center</h1>
+                    <div style="color: var(--text-dim); font-size: 0.95rem; margin-top: 4px;">T_Music_Bot RPC</div>
+                </div>
+            </div>
+            <span class="badge">{app_version}</span>
+        </header>
+
+        <div class="quick-nav">
+            <a href="#card_general" class="nav-item active">System</a>
+            <a href="#card_overlay" class="nav-item">Layout</a>
+            <a href="#card_colors" class="nav-item" id="nav_colors">Colors</a>
+            <a href="#card_viz_settings" class="nav-item" id="nav_viz">Visualizer</a>
+        </div>
+
+        <form id="settingsForm">
+            <div class="grid">
+                <!-- 1. GENERAL SETTINGS -->
+                <div class="card" id="card_general">
+                    <div class="card-header">
+                        <div class="header-left-title"><span class="title-text">System Connection</span></div>
+                        <button type="button" class="btn-reset" onclick="resetSection('general')">Reset</button>
+                    </div>
+                    
+                    <div class="connection-row">
+                        <div class="connection-subrow">
+                            <div class="field" style="flex: 1.2;">
+                                <label>Pairing Code</label>
+                                <input type="text" id="sys_code" class="input-small" placeholder="000000" maxlength="6">
+                            </div>
+                            <div class="field" style="flex: 1;">
+                                <label>Port</label>
+                                <input type="text" id="sys_port" class="input-small">
+                            </div>
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>Client</label>
+                            <select id="rpc_ipcPipe">
+                                <option value="-1">Auto-Detect</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="sys_userId">
+
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="sys_overlayEnabled" onchange="applyConditionalVisibility()"><span class="toggle-text">Enable Overlay</span></label>
+                        <label class="toggle-item" id="wrap_viz_toggle"><input type="checkbox" id="sys_vizEnabled" onchange="applyConditionalVisibility()"><span class="toggle-text">Enable Visualizer</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="rpc_swapLines"><span class="toggle-text">Swap RP Lines</span></label>
+                        <label class="toggle-item" id="wrap_fps_toggle"><input type="checkbox" id="viz_debugFps"><span class="toggle-text">Show FPS</span></label>
+                    </div>
+                    <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 14px 20px; border-radius: 12px; border: 1px solid var(--border); box-sizing: border-box; width: 100%;">
+                        <span class="toggle-text" style="font-weight: 600; font-size: 0.95rem;">Allow LAN Access (Adds Firewall Rule)</span>
+                        <label class="switch" style="flex-shrink: 0;">
+                            <input type="checkbox" id="sys_allowFirewall">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="highlight-box" id="obs_guide" style="margin-top: 24px; padding: 20px; background: rgba(56, 189, 248, 0.05); border: 1px dashed var(--accent); border-radius: 16px;">
+                        <div style="font-size: 1.1rem; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <strong>OBS Studio Integration Guide</strong>
+                        </div>
+                        <ul style="margin: 0; padding-left: 24px; color: var(--text-dim); line-height: 1.8; font-size: 0.95rem;">
+                            <li>Add a new <strong>Browser Source</strong> in your selected OBS scene.</li>
+                            <li>URL: <code class="guide_url" style="color: var(--text); font-weight: bold; background: var(--bg); padding: 2px 6px; border-radius: 4px;">http://127.0.0.1:3000/</code></li>
+                            <li>Dimensions: <strong>Width:</strong> <code id="guide_w" style="color: var(--text);">1360</code> | <strong>Height:</strong> <code id="guide_h" style="color: var(--text);">440</code></li>
+                            <li>Check <strong style="color: #fff;">"Shutdown source when not visible"</strong> to save PC resources.</li>
+                            <li>Check <strong style="color: #fff;">"Refresh browser when scene becomes active"</strong> to ensure perfect sync.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 2. OVERLAY SETTINGS -->
+                <div class="card" id="card_overlay">
+                    <div class="card-header">
+                        <div class="header-left-title"><span class="title-text">Display Layout</span></div>
+                        <button type="button" class="btn-reset" onclick="resetSection('overlay')">Reset</button>
+                    </div>
+                    
+                    <div class="field">
+                        <label>Layout Mode</label>
+                        <select id="overlay_layout">
+                            <option value="full">Full Cinematic</option>
+                            <option value="compact-bar">Compact Bar</option>
+                            <option value="compact-minimal">Minimalist</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>Background Visuals</label>
+                        <select id="overlay_bgStyle">
+                            <option value="none">Solid Color Only</option>
+                            <option value="blur">Blur Edges (Cinematic Aura)</option>
+                            <option value="cover">Full Cover Art Backdrop</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; margin-bottom: 24px;">
+                        <div class="field" style="flex: 1;">
+                            <label>Master Opacity <span class="val-display" id="val_bgOp">0.85</span></label>
+                            <input type="range" min="0" max="1" step="0.05" id="overlay_backgroundOpacity" oninput="document.getElementById('val_bgOp').innerText=this.value">
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label>FX Intensity <span class="val-display" id="val_thumbOp">0.5</span></label>
+                            <input type="range" min="0" max="1" step="0.05" id="overlay_thumbOpacity" oninput="document.getElementById('val_thumbOp').innerText=this.value">
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid var(--border); padding-top: 24px; margin-top: 10px;">
+                        <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                            <div class="field" style="flex: 1;">
+                                <label>Text Scrolling Mode</label>
+                                <select id="overlay_textAnimationMode" onchange="const d=el('wrap_text_speed'); if(this.value==='static') d.style.display='block'; else d.style.display='none';">
+                                    <option value="dynamic">Dynamic (Based on length)</option>
+                                    <option value="static">Static (Fixed seconds)</option>
+                                </select>
+                            </div>
+                            <div class="field" id="wrap_text_speed" style="flex: 1; display: none;">
+                                <label>Scroll Duration <span class="val-display" id="val_textDur">10</span>s</label>
+                                <input type="range" min="2" max="60" step="1" id="overlay_textAnimationDuration" oninput="document.getElementById('val_textDur').innerText=this.value">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="toggle-grid">
+                        <label class="toggle-item"><input type="checkbox" id="overlay_textAnim"><span class="toggle-text">Text Animation</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_centerText"><span class="toggle-text">Center Layout</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="overlay_globalSync"><span class="toggle-text">Cover Art Sync</span></label>
+                        <label class="toggle-item"><input type="checkbox" id="bg_grad_random"><span class="toggle-text">Shuffle Colors</span></label>
+                    </div>
+                </div>
+
+                <!-- 3. COLOR PROFILE -->
+                <div class="card" id="card_colors">
+                    <div class="card-header">
+                        <div class="header-left-title"><span class="title-text">Color Profile</span><span class="badge" id="cover_art_sync_badge" style="margin-left: 8px; font-size: 0.7rem; display: none; background: rgba(56, 189, 248, 0.1); border-color: var(--accent); white-space: nowrap;">Controlled by Cover Art</span></div>
+                        <button type="button" class="btn-reset" onclick="resetSection('colors')">Reset</button>
+                    </div>
+                    <div class="field">
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                            <div class="color-row" id="row_txt">
+                                <div class="picker-wrap">
+                                    <div class="color-section-title">Text Palette</div>
+                                    <div style="display: flex; gap: 10px;">
+                                        <div style="flex: 1;"><div class="row-label">Primary</div><div id="txt_top"></div></div>
+                                        <div class="secondary-picker-container" id="txt_bot_container" style="flex: 1;">
+                                            <div class="row-label">Secondary</div><div id="txt_bot"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="toggle-col">
+                                    <div class="row-label">Solid</div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="txt_static" onchange="updatePickerVisibility()">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="color-row" id="row_brd">
+                                 <div class="picker-wrap">
+                                     <div class="color-section-title">Border Style</div>
+                                     <div style="display: flex; gap: 10px;">
+                                         <div style="flex: 1;"><div class="row-label">Top</div><div id="brd_top"></div></div>
+                                         <div class="secondary-picker-container" id="brd_bot_container" style="flex: 1;">
+                                             <div class="row-label">Bottom</div><div id="brd_bot"></div>
+                                         </div>
+                                     </div>
+                                 </div>
+                                  <div class="toggle-col" style="display: flex; gap: 6px; align-items: center; justify-content: center; height: 100%;">
+                                      <div id="wrap_brd_static" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 45px;">
+                                          <div class="row-label">Solid</div>
+                                          <label class="switch">
+                                              <input type="checkbox" id="brd_static" onchange="updatePickerVisibility()">
+                                              <span class="slider"></span>
+                                          </label>
+                                      </div>
+                                      <div style="height: 32px; border-left: 1px solid var(--border);"></div>
+                                      <div style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 45px;">
+                                          <div class="row-label">Border</div>
+                                          <label class="switch">
+                                              <input type="checkbox" id="brd_enabled" onchange="updateBorderVisibility()">
+                                              <span class="slider"></span>
+                                          </label>
+                                      </div>
+                                  </div>
+                             </div>
+
+                            <div class="color-row" id="row_acc">
+                                <div class="picker-wrap">
+                                    <div class="color-section-title">Accent Highlights</div>
+                                    <div style="display: flex; gap: 10px;">
+                                        <div style="flex: 1;"><div class="row-label">Primary</div><div id="acc_top"></div></div>
+                                        <div class="secondary-picker-container" id="acc_bot_container" style="flex: 1;">
+                                            <div class="row-label">Secondary</div><div id="acc_bot"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="toggle-col">
+                                    <div class="row-label">Solid</div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="acc_static" onchange="updatePickerVisibility()">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. VISUALIZER CONFIGURATION -->
+                <div class="card" id="card_viz_settings">
+                    <div class="card-header">
+                        <div class="header-left-title"><span class="title-text">Visualizer Configuration</span></div>
+                        <button type="button" class="btn-reset" onclick="resetSection('visualizer')">Reset</button>
+                    </div>
+                    <div class="desc" style="margin-bottom: 20px;"><strong>Tip:</strong> You can click the ↺ button next to any slider or color palette to reset that specific setting to its default value.</div>
+                    <div class="grid" style="gap: 40px; margin-bottom: 0;">
+                        <div>
+                            <div class="field">
+                                <label>Shape Mode</label>
+                                <select id="viz_mode">
+                                    <option value="bars">Classic Frequency Bars</option>
+                                    <option value="center-bars">Pulsing Center Split</option>
+                                    <option value="wave">Fluid Liquid Waveform</option>
+                                    <option value="neon">Hollow Neon Outlines</option>
+                                    <option value="led">LED Dot Matrix</option>
+                                    <option value="particles">Floating Particles</option>
+                                    <option value="sides">Edges: Left & Right</option>
+                                    <option value="background">Full Background</option>
+                                    <option value="mirrored">Edges: Top & Bottom</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Frequency Mapping</label>
+                                <select id="viz_type">
+                                    <option value="logarithmic">Logarithmic (Musical)</option>
+                                    <option value="linear">Linear (Accurate)</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Color Customization</label>
+                                <div class="color-row" id="row_viz">
+                                    <div class="picker-wrap">
+                                        <div style="display: flex; gap: 10px;">
+                                            <div style="flex: 1;"><div class="row-label">Top</div><div id="viz_top"></div></div>
+                                            <div class="secondary-picker-container" id="viz_bot_container" style="flex: 1;">
+                                                <div class="row-label">Bottom</div><div id="viz_bot"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-col">
+                                        <div class="row-label">Solid</div>
+                                        <label class="switch">
+                                            <input type="checkbox" id="viz_static" onchange="updatePickerVisibility()">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="toggle-grid">
+                                <label class="toggle-item"><input type="checkbox" id="viz_rounded"><span class="toggle-text">Round Edges</span></label>
+                                <label class="toggle-item"><input type="checkbox" id="viz_glow"><span class="toggle-text">Enable Glow</span></label>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="row-label" style="text-align: left; margin-bottom: 12px; opacity: 0.8;">⚡ Quick Presets</div>
+                            <div class="preset-row">
+                                <button type="button" class="preset-btn" data-preset="balanced" onclick="applyPreset('balanced', event)">Balanced</button>
+                                <button type="button" class="preset-btn" data-preset="smooth" onclick="applyPreset('smooth', event)">Smooth / Chill</button>
+                                <button type="button" class="preset-btn" data-preset="reactive" onclick="applyPreset('reactive', event)">High BPM / Fast</button>
+                            </div>
+
+                            <div style="display: flex; gap: 15px;">
+                                <div class="field" style="flex: 1;"><label>Bar Count <span class="val-display" id="val_bars">64</span></label><input type="range" min="10" max="256" step="2" id="viz_bars" oninput="document.getElementById('val_bars').innerText=this.value"></div>
+                                <div class="field" style="flex: 1;"><label>Max FPS <span class="val-display" id="val_fps">60</span></label><input type="range" min="15" max="240" step="1" id="viz_fps" oninput="document.getElementById('val_fps').innerText=this.value"></div>
+                            </div>
+                            <div style="display: flex; gap: 15px;">
+                                <div class="field" style="flex: 1;"><label>Thickness <span class="val-display" id="val_barWidth">10</span></label><input type="range" min="1" max="30" step="1" id="viz_barWidth" oninput="document.getElementById('val_barWidth').innerText=this.value"></div>
+                                <div class="field" style="flex: 1;"><label>Spacing <span class="val-display" id="val_barGap">5</span></label><input type="range" min="0" max="30" step="1" id="viz_barGap" oninput="document.getElementById('val_barGap').innerText=this.value"></div>
+                            </div>
+                            <div style="display: flex; gap: 15px;">
+                                <div class="field" style="flex: 1;"><label>Sensitivity <span class="val-display" id="val_sens">50</span></label><input type="range" min="1" max="100" id="viz_sensitivity" oninput="document.getElementById('val_sens').innerText=this.value"></div>
+                                <div class="field" style="flex: 1;"><label>Multiplier <span class="val-display" id="val_mult">25</span></label><input type="range" min="1" max="50" id="viz_multiplier" oninput="document.getElementById('val_mult').innerText=this.value"></div>
+                            </div>
+                            <div style="display: flex; gap: 15px;">
+                                <div class="field" style="flex: 1;"><label>Temporal Smooth <span class="val-display" id="val_smooth">6</span></label><input type="range" min="0" max="40" id="viz_smoothing" oninput="document.getElementById('val_smooth').innerText=this.value"></div>
+                                <div class="field" style="flex: 1;"><label>Fidelity (Samples) <span class="val-display" id="val_samples">4096</span></label><input type="range" min="512" max="16384" step="512" id="viz_samples" oninput="document.getElementById('val_samples').innerText=this.value"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="deploy-zone">
+        <button type="button" class="btn-danger" onclick="resetSection('factory')">Factory Reset</button>
+        <div style="flex: 1;"></div>
+        <button type="submit" form="settingsForm">Deploy Changes</button>
+        <div id="status">DEPLOYED SUCCESSFULLY</div>
+    </div>
+
+    <script>
+        window.__SETTINGS__ = null; // 🚀 HYDRATED BY SERVER
+    </script>
+    <script src="/ui/assets/gui.js?v=6"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
-use crate::config::Settings;
+pub mod firewall;
+use crate::models::TrackUpdate;
 use std::process::Command;
-use std::fs::{self, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use cpal::traits::{DeviceTrait, HostTrait};
@@ -11,11 +12,16 @@ pub fn get_log_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("latest.log"))
 }
 
+use std::sync::Mutex;
+
+static LOG_MUTEX: Mutex<()> = Mutex::new(());
+
 pub fn log_message(msg: &str) {
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
     let log_line = format!("[{}] {}\n", timestamp, msg);
     print!("{}", log_line);
     
+    let _lock = LOG_MUTEX.lock().unwrap();
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -26,14 +32,17 @@ pub fn log_message(msg: &str) {
     }
 }
 
+use std::collections::HashSet;
+
 pub fn get_audio_devices() -> Vec<String> {
     let host = cpal::default_host();
     let mut names = Vec::new();
+    let mut seen = HashSet::new();
     
     if let Ok(devices) = host.output_devices() {
         for d in devices {
             if let Ok(name) = d.name() {
-                if !names.contains(&name) {
+                if seen.insert(name.clone()) {
                     names.push(name);
                 }
             }
@@ -44,90 +53,22 @@ pub fn get_audio_devices() -> Vec<String> {
 
 pub fn process_thumbnail(url: Option<&str>) -> String {
     match url {
-        Some(u) if u.contains("ytimg.com") => {
-            let re = regex::Regex::new(r"/(?:default|hqdefault|sddefault|mqdefault)\.jpg").unwrap();
-            re.replace(u, "/maxresdefault.jpg").to_string()
-        }
         Some(u) if !u.is_empty() && u != "null" => u.to_string(),
         _ => "/assets/music.png".to_string(),
     }
 }
 
-pub fn format_overlay_track(mut data: crate::config::TrackUpdate) -> crate::config::TrackUpdate {
+pub fn format_overlay_track(mut data: TrackUpdate) -> TrackUpdate {
     data.thumbnail = Some(process_thumbnail(data.thumbnail.as_deref()));
-
-    if let (Some(d), Some(s)) = (data.details.as_mut(), data.state.as_mut()) {
-        let mut artist_name = s.clone();
-        if artist_name.to_lowercase().starts_with("by ") {
-            artist_name = artist_name[3..].trim().to_string();
-        }
-        let escaped_artist = regex::escape(&artist_name);
-        let separators = vec!["\\s*-\\s*", "\\s*–\\s*", "\\s*—\\s*", ":\\s*", "\\|\\s*", "\\s*~\\s*", "\\s*by\\s+"];
-        let sep_join = separators.join("|");
-        
-        let artist_regex = regex::Regex::new(&format!(r"(?i)(?:^|\s+){}(?:{})", escaped_artist, sep_join)).unwrap();
-        *d = artist_regex.replace(d, "").trim().to_string();
-        
-        let suffix_regex = regex::Regex::new(&format!(r"(?i)(?:{})\s*{}\s*$", sep_join, escaped_artist)).unwrap();
-        *d = suffix_regex.replace(d, "").trim().to_string();
-        
-        let junk_patterns = vec![
-            r"(?i)\s*[\(\[].*?Mashup.*?[\)\]]\s*",
-            r"(?i)\s*[\[\(\]]?(?:Copyright[\s-]*Freel?|Official Music Video|Official Video|Official Audio|Music Video|Lyrics|Audio|Video)[^\\]\)]*[\\]\)]?\s*",
-            r"(?i)\s*[\(\[].*?(?:Video|Audio|Lyrics|Version|Remix).*?[\)\]]\s*",
-            r"(?i)\[Copyright[\s-]*Freel?\]?",
-            r"(?i)\s*No\.\s*\d+\s*",
-        ];
-        for p in junk_patterns {
-            let re = regex::Regex::new(p).unwrap();
-            *d = re.replace_all(d, " ").to_string();
-        }
-        let re_space = regex::Regex::new(r"\s\s+").unwrap();
-        *d = re_space.replace_all(d, " ").trim().to_string();
+    // 🚀 UNIFIED IDLE STRINGS: Ensure the UI always has consistent text for idle states
+    if data.status == "idle" {
+        if data.details.is_none() { data.details = Some("Resting...".to_string()); }
+        if data.state.is_none() { data.state = Some("Browsing for music".to_string()); }
     }
     data
 }
 
-pub fn format_rpc_track(mut data: crate::config::TrackUpdate) -> crate::config::TrackUpdate {
-    // 🚨 DETECT IDLE STATES TO CLEAR RPC
-    let is_idle = data.details.as_deref().map(|d| d.contains("Disconnected") || d.contains("Resting...") || d.contains("Not Playing")).unwrap_or(false)
-               || data.state.as_deref().map(|s| s.contains("Resting...") || s.contains("Not Playing")).unwrap_or(false);
-
-    if is_idle {
-        data.details = None;
-        data.state = None;
-        return data;
-    }
-
-    if let (Some(d), Some(s)) = (data.details.as_mut(), data.state.as_mut()) {
-        let mut artist_name = s.clone();
-        if artist_name.to_lowercase().starts_with("by ") {
-            artist_name = artist_name[3..].trim().to_string();
-        }
-        let escaped_artist = regex::escape(&artist_name);
-        let separators = vec!["\\s*-\\s*", "\\s*–\\s*", "\\s*—\\s*", ":\\s*", "\\|\\s*", "\\s*~\\s*", "\\s*by\\s+"];
-        let sep_join = separators.join("|");
-
-        let artist_regex = regex::Regex::new(&format!(r"(?i)^{}\s*[-:|~]\s*", escaped_artist)).unwrap();
-        *d = artist_regex.replace(d, "").trim().to_string();
-
-        let suffix_regex = regex::Regex::new(&format!(r"(?i)(?:{})\s*{}\s*$", sep_join, escaped_artist)).unwrap();
-        *d = suffix_regex.replace(d, "").trim().to_string();
-        
-        let junk_patterns = vec![
-            r"(?i)\s*[\[\(\]]?(?:Copyright[\s-]*Freel?|Official Music Video|Official Video|Official Audio|Music Video|Lyrics|Audio|Video)[^\]\)]*[\]\)]?\s*",
-            r"(?i)\s*[\(\[].*?(?:Video|Audio|Lyrics|Version|Remix).*?[\)\]]\s*",
-            r"(?i)\[Copyright[\s-]*Freel?\]?",
-            r"(?i)\s*No\.\s*\d+\s*",
-        ];
-        for p in junk_patterns {
-            let re = regex::Regex::new(p).unwrap();
-            *d = re.replace_all(d, " ").to_string();
-        }
-        
-        let re_space = regex::Regex::new(r"\s\s+").unwrap();
-        *d = re_space.replace_all(d, " ").trim().to_string();
-    }
+pub fn format_rpc_track(data: TrackUpdate) -> TrackUpdate {
     data
 }
 
@@ -146,7 +87,14 @@ pub fn get_pairing_code() -> String {
              $f.Controls.AddRange(@($l1,$l2,$l3,$t,$btnOk,$btnCan)); $f.Activate(); if($f.ShowDialog()-eq1){{$t.Text}}else{{'CANCELLED'}}",
             title
         );
-        let output = Command::new("powershell").args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]).output().expect("Failed to execute PowerShell");
+        let output = {
+            use std::os::windows::process::CommandExt;
+            Command::new("powershell")
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+                .output()
+                .expect("Failed to execute PowerShell")
+        };
         String::from_utf8_lossy(&output.stdout).trim().to_string()
     } else {
         let output = Command::new("zenity").args(&["--entry", "--title", title, "--text", "Paste Pairing Code:"]).output().unwrap_or_else(|_| {
@@ -164,62 +112,103 @@ pub fn get_pairing_code() -> String {
 pub fn show_error_popup(msg: &str) {
     if cfg!(target_os = "windows") {
         let ps_script = format!(
-            "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('{}', 'T_Music_Bot RPC - Error', 'OK', 'Error')",
+            "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('{}', 'T_Music_Bot RPC - Info', 'OK', 'Information')",
             msg.replace("'", "''")
         );
-        let _ = Command::new("powershell").args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]).output();
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let _ = Command::new("powershell")
+                .creation_flags(0x08000000)
+                .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+                .output();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = Command::new("powershell").args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]).output();
+        }
+    } else if cfg!(target_os = "macos") {
+        let script = format!("display dialog \"{}\" buttons {{\"OK\"}} default button \"OK\" with title \"T_Music_Bot RPC\"", msg.replace("\"", "\\\""));
+        let _ = Command::new("osascript").args(&["-e", &script]).output();
     } else {
-        let _ = Command::new("zenity").args(&["--error", "--title", "T_Music_Bot RPC - Error", "--text", msg]).output();
+        let _ = Command::new("zenity").args(&["--info", "--title", "T_Music_Bot RPC", "--text", msg]).output();
     }
 }
 
-pub fn save_settings(settings: &Settings) {
-    if let Ok(content) = serde_json::to_string_pretty(settings) {
-        let _ = fs::write("settings.json", content);
-    }
-}
-
-pub fn check_lock(port: u16) {
+pub fn create_desktop_shortcut() {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::Threading::CreateMutexW;
-        use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
-        
-        let mutex_name_str = format!("Global\\T_Music_Bot_RPC_Port_{}\0", port);
-        let mutex_name: Vec<u16> = mutex_name_str.encode_utf16().collect();
-        unsafe {
-            let handle = CreateMutexW(std::ptr::null(), 1, mutex_name.as_ptr());
-            if handle == 0 {
-                let local_name: Vec<u16> = format!("Local\\T_Music_Bot_RPC_Port_{}\0", port).encode_utf16().collect();
-                let local_handle = CreateMutexW(std::ptr::null(), 1, local_name.as_ptr());
-                if local_handle == 0 {
-                    eprintln!("[Core] Fatal: Could not create system mutex.");
-                    std::process::exit(1);
-                }
-                if GetLastError() == ERROR_ALREADY_EXISTS {
-                    eprintln!("[Core] Port {} is already being used by another instance. Exiting.", port);
-                    std::process::exit(1);
-                }
-            } else if GetLastError() == ERROR_ALREADY_EXISTS {
-                eprintln!("[Core] Port {} is already being used by another instance. Exiting.", port);
-                std::process::exit(1);
-            }
-        }
+        use std::os::windows::process::CommandExt;
+        let exe_path = std::env::current_exe().unwrap_or_default();
+        if exe_path.as_os_str().is_empty() { return; }
+        let ps_script = format!(
+            "$s=New-Object -ComObject WScript.Shell; $d=[System.Environment]::GetFolderPath('Desktop'); $l=$s.CreateShortcut(\"$d\\T_Music_Bot RPC.lnk\"); $l.TargetPath='{}'; $l.Save();",
+            exe_path.to_str().unwrap_or_default().replace("\\", "\\\\")
+        );
+        let _ = Command::new("powershell")
+            .creation_flags(0x08000000)
+            .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+            .output();
     }
+}
 
-    #[cfg(unix)]
+pub fn create_start_menu_shortcut() {
+    #[cfg(windows)]
     {
-        let lock_file = std::env::temp_dir().join(format!("t-music-bot-rpc-port-{}.lock", port));
-        if lock_file.exists() {
-            if let Ok(pid_str) = fs::read_to_string(&lock_file) {
-                if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                    if pid != std::process::id() && std::path::Path::new(&format!("/proc/{}", pid)).exists() {
-                        eprintln!("[Core] Another instance is already running (PID: {}). Exiting.", pid);
-                        std::process::exit(1);
+        use std::os::windows::process::CommandExt;
+        let exe_path = std::env::current_exe().unwrap_or_default();
+        if exe_path.as_os_str().is_empty() { return; }
+        let ps_script = format!(
+            "$s=New-Object -ComObject WScript.Shell; $m=[System.Environment]::GetFolderPath('StartMenu'); $l=$s.CreateShortcut(\"$m\\T_Music_Bot RPC.lnk\"); $l.TargetPath='{}'; $l.Save();",
+            exe_path.to_str().unwrap_or_default().replace("\\", "\\\\")
+        );
+        let _ = Command::new("powershell")
+            .creation_flags(0x08000000)
+            .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+            .output();
+    }
+}
+
+pub fn check_for_updates() {
+    std::thread::spawn(|| {
+        let url = "https://api.github.com/repos/T-Bot-Team/t-music-bot-rpc/releases/latest";
+        if let Ok(resp) = minreq::get(url).with_header("User-Agent", "T_Music_Bot-RPC").send() {
+            if let Ok(json) = resp.json::<serde_json::Value>() {
+                let latest_ver = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
+                let current_ver = env!("CARGO_PKG_VERSION");
+
+                if !latest_ver.is_empty() && latest_ver != current_ver {
+                    log_message(&format!("[Updater] Update found: v{} (Current: v{}).", latest_ver, current_ver));
+                    
+                    let platform_name = if cfg!(windows) { "T_Music_Bot_RPC.exe" } else { "T_Music_Bot-RPC" };
+                    let asset = json["assets"].as_array().and_then(|a| {
+                        a.iter().find(|&asst| asst["name"].as_str().unwrap_or("").contains(platform_name))
+                    });
+
+                    if let Some(asset) = asset {
+                        let download_url = asset["browser_download_url"].as_str().unwrap_or("");
+                        if !download_url.is_empty() {
+                            log_message("[Updater] Downloading new binary...");
+                            if let Ok(bin_resp) = minreq::get(download_url).with_header("User-Agent", "T_Music_Bot-RPC").send() {
+                                let bytes = bin_resp.as_bytes();
+                                let tmp_path = std::env::temp_dir().join("t_music_bot_rpc_new");
+                                if std::fs::write(&tmp_path, bytes).is_ok() {
+                                    log_message("[Updater] Download complete. Restart to apply update.");
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        let _ = fs::write(&lock_file, std::process::id().to_string());
+    });
+}
+
+pub fn check_lock(port: u16) {
+    let addr = format!("127.0.0.1:{}", port);
+    if std::net::TcpStream::connect(&addr).is_ok() {
+        let msg = format!("T_Music_Bot RPC is already running on port {}. Please close the other instance.", port);
+        show_error_popup(&msg);
+        std::process::exit(1);
     }
 }

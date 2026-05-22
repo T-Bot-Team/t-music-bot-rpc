@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>T_Music_Bot | Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/assets/icon.png">
+    <link rel="stylesheet" href="/ui/assets/setup.css"/>
+</head>
+<body>
+    <div id="auth_modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Identity Verification</h2>
+            <p>Your client (arRPC / WebCord) hides your identity. For security, please verify your 18-digit Discord User ID.</p>
+            <div class="field">
+                <input type="text" id="modal_userId" placeholder="e.g. 298432708269441034" style="text-align: center; font-weight: bold; letter-spacing: 2px;">
+            </div>
+            <button type="button" id="modal_submit">Verify & Continue</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <img src="/assets/icon.png" alt="Logo">
+                <div>
+                    <h1>First-Time Setup</h1>
+                    <div style="color: var(--text-dim); font-size: 0.95rem; margin-top: 4px;">Welcome to T_Music_Bot</div>
+                </div>
+            </div>
+            <span class="badge">Initialization</span>
+        </header>
+
+        <form id="setupForm">
+            <div class="card-stack">
+                <div class="card">
+                    <div class="card-header">Step 1: Device Pairing</div>
+                    <div class="field">
+                        <label>6-Digit Pairing Code</label>
+                        <input type="text" id="sys_code" placeholder="Enter code from the bot" maxlength="6">
+                        <div class="desc" style="margin-top: 10px;">This connects this RPC bridge to your Discord account.</div>
+                    </div>
+                    <input type="hidden" id="sys_userId">
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Step 2: Stream Overlay</div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_overlayEnabled" onchange="toggleOverlayOptions()">
+                            <span class="toggle-text">Enable Overlay (For OBS/Streaming)</span>
+                        </label>
+                    </div>
+
+                    <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 14px 20px; border-radius: 12px; border: 1px solid var(--border); box-sizing: border-box; width: 100%;">
+                        <span class="toggle-text" style="font-weight: 600; font-size: 0.95rem;">Allow LAN Access (Adds Firewall Rule)</span>
+                        <label class="switch" style="flex-shrink: 0;">
+                            <input type="checkbox" id="sys_allowFirewall">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div id="overlay_options" class="hidden-section">
+                        <div class="field">
+                            <label>Application Port</label>
+                            <input type="text" id="sys_port" value="3000">
+                        </div>
+                        <div class="toggle-grid">
+                            <label class="toggle-item">
+                                <input type="checkbox" id="sys_vizEnabled" onchange="toggleVizOptions()">
+                                <span class="toggle-text">Enable Audio Visualizer</span>
+                            </label>
+                        </div>
+                        
+                        <div id="viz_options" class="hidden-section">
+                            <div class="field">
+                                <label>Playback Device (Audio Source)</label>
+                                <select id="sys_audioDevice">
+                                    <option value="default">Default Output</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Step 3: Discord Presence</div>
+                    <div class="toggle-grid">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="rpc_swapLines">
+                            <span class="toggle-text">Swap Details & State (Artist on top)</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_desktopShortcut" checked>
+                            <span class="toggle-text">Create Desktop Shortcut</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_startMenuShortcut" checked>
+                            <span class="toggle-text">Add to Start Menu</span>
+                        </label>
+                    </div>
+                    <div class="desc" style="margin-top: 12px;">Customize how your status looks to others.</div>
+                </div>
+            </div>
+
+            <div class="deploy-zone">
+                <button type="submit">Complete Setup</button>
+                <div id="status">Saved! Redirecting to the Dashboard...</div>
+            </div>
+        </form>
+    </div>
+    <script src="/ui/assets/setup.js"></script>
+</body>
+</html>

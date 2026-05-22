@@ -1,12 +1,11 @@
 use std::sync::{Arc};
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 use tray_icon::{
     menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder, MenuEvent, CheckMenuItemBuilder, CheckMenuItem},
     TrayIconBuilder,
 };
 use crate::{AppState, info};
 use tokio::runtime::Runtime;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct TrayHandle {
     pub ws_item: MenuItem,
@@ -14,7 +13,6 @@ pub struct TrayHandle {
 }
 
 static mut GLOBAL_TRAY_HANDLE: Option<TrayHandle> = None;
-static LAST_UPDATE_MILLIS: AtomicU64 = AtomicU64::new(0);
 
 pub fn create_tray(state: AppState, rt: Runtime) {
     let rt_arc = Arc::new(rt);
@@ -39,10 +37,21 @@ pub fn create_tray(state: AppState, rt: Runtime) {
     let loop_state = state.clone();
     let loop_rt = rt_arc.clone();
     std::thread::spawn(move || {
-        let start_time = Instant::now();
+        let mut last_ws = String::new();
+        let mut last_rpc = String::new();
         loop {
-            update_tray_status(loop_state.clone(), &loop_rt, start_time);
-            std::thread::sleep(Duration::from_millis(1000));
+            let (ws, rpc) = loop_rt.block_on(async {
+                let s = loop_state.read().await;
+                (s.ws_status.clone(), s.rpc_status.clone())
+            });
+
+            if ws != last_ws || rpc != last_rpc {
+                update_tray_status_direct(ws.clone(), rpc.clone());
+                last_ws = ws;
+                last_rpc = rpc;
+            }
+
+            std::thread::sleep(Duration::from_millis(2000));
         }
     });
 
@@ -83,7 +92,7 @@ pub fn create_tray(state: AppState, rt: Runtime) {
                             let mut s = loop_state_2.blocking_write();
                             if let Some(st) = s.settings.as_mut() {
                                 st.overlay.visualizer.audio_device = name.clone();
-                                crate::utils::save_settings(st);
+                                crate::config::save_settings(st);
                                 info!("[Tray] Audio device updated: {}", name);
                                 
                                 // 🚨 CRITICAL: Trigger visualizer restart!
@@ -91,8 +100,6 @@ pub fn create_tray(state: AppState, rt: Runtime) {
                             }
                         }
                     }
-
-                    // LAYOUT SELECTION REMOVED FROM TRAY
                 }
             }
         }
@@ -139,17 +146,7 @@ fn build_menu(state: &AppState, rt: &Arc<Runtime>) -> (Menu, Vec<(CheckMenuItem,
     (menu, device_items, quit.id().clone(), open_logs.id().clone(), open_settings.id().clone())
 }
 
-fn update_tray_status(state: AppState, rt: &Runtime, start_time: Instant) {
-    let now_millis = Instant::now().duration_since(start_time).as_millis() as u64;
-    let last = LAST_UPDATE_MILLIS.load(Ordering::Relaxed);
-    if now_millis - last < 1000 { return; }
-    LAST_UPDATE_MILLIS.store(now_millis, Ordering::Relaxed);
-
-    let (ws, rpc) = rt.block_on(async {
-        let s = state.read().await;
-        (s.ws_status.clone(), s.rpc_status.clone())
-    });
-
+fn update_tray_status_direct(ws: String, rpc: String) {
     unsafe {
         if let Some(h) = (&raw const GLOBAL_TRAY_HANDLE).as_ref().unwrap() {
             let _ = h.ws_item.set_text(format!("WS: {}", ws));

@@ -5,15 +5,14 @@ edition = "2021"
 
 [dependencies]
 # Async Engine
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 futures-util = "0.3"
 
 # Discord RPC
-discord-rpc-client = "0.3"
 discord-rich-presence = "0.2"
 
 # Image Processing
-image = "0.24"
+image = { version = "0.24", default-features = false, features = ["ico", "png"] }
 
 # Audio Capture (Native Rust)
 cpal = "0.15"
@@ -24,30 +23,29 @@ axum = { version = "0.7", features = ["ws", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tower-http = { version = "0.5", features = ["fs"] }
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 uuid = { version = "1.0", features = ["v4"] }
 
 # UI & Tray
 tray-icon = "0.19"
 open = "5.0"
 
-# TLS & Crypto
-rustls = { version = "0.23", features = ["ring"] }
-
 # Logging
 chrono = "0.4"
 
 # Utils
 rand = "0.8"
-regex = "1.10"
 base64 = "0.22"
-rayon = "1.12.0"
 ctrlc = "3.5.2"
+self-replace = "1.5"
+minreq = { version = "2.11", features = ["https-native", "json-using-serde"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 
 # Windows Specific
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_Security"] }
-winapi = { version = "0.3", features = ["winuser"] }
 
 [build-dependencies]
 winres = "0.1"
