@@ -7,15 +7,30 @@ pub const DISCORD_RATELIMIT: Duration = Duration::from_secs(15);
 
 pub async fn apply_new_state(state: &AppState, mut track: TrackUpdate, _is_transition: bool, rpc_raw: Value) {
     let details = track.details.as_deref().unwrap_or("").to_lowercase();
+    let state_str = track.state.as_deref().unwrap_or("").to_lowercase();
 
     let is_resting = details == "idle" || 
                      details == "resting" || 
                      details == "resting..." ||
+                     details == "loading next track..." ||
+                     details == "loading next track" ||
+                     state_str == "preparing to play..." ||
+                     state_str == "preparing to play" ||
                      details.is_empty();
                      
     let is_empty = (track.details.is_none() && track.state.is_none()) || is_resting;
     
-    track.status = if is_empty { "idle".to_string() } else { "playing".to_string() };
+    let is_paused_by_key = track.small_image_key.as_deref().map(|s| s.contains("pause")).unwrap_or(false)
+        || track.large_image_key.as_deref().map(|s| s.contains("pause")).unwrap_or(false)
+        || track.paused.unwrap_or(false)
+        || track.status == "paused";
+
+    if is_paused_by_key {
+        track.paused = Some(true);
+        track.status = "paused".to_string();
+    } else {
+        track.status = if is_empty { "idle".to_string() } else { "playing".to_string() };
+    }
 
     info!("[WS] Track Update: {} - {} (Status: {})", 
         track.details.as_deref().unwrap_or("None"), 

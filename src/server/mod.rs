@@ -15,10 +15,12 @@ pub struct ServerHandle {
 }
 
 pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Receiver<()>) {
-    let (port, tx) = {
+    let (port, allow_firewall, tx) = {
         let s = state.read().await;
+        let settings = s.settings.as_ref().unwrap();
         (
-            s.settings.as_ref().unwrap().overlay.port,
+            settings.overlay.port,
+            settings.allow_firewall,
             s.overlay_tx.clone(),
         )
     };
@@ -43,7 +45,8 @@ pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Re
         .route("/ui/assets/:path", get(asset_handler))
         .with_state((state.clone(), server_handle));
 
-    let addr = format!("0.0.0.0:{}", port);
+    let bind_ip = if allow_firewall { "0.0.0.0" } else { "127.0.0.1" };
+    let addr = format!("{}:{}", bind_ip, port);
     match tokio::net::TcpListener::bind(&addr).await {
         Ok(listener) => {
             info!("[Server] Overlay active on http://{}", addr);

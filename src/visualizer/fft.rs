@@ -42,7 +42,7 @@ impl FftProcessor {
     }
     
     pub fn get_magnitudes(&self) -> Vec<f32> {
-        let scalar_fft = 1.0 / (self.win_size as f32); 
+        let scalar_fft = 1.0 / (self.win_size as f32).sqrt(); 
         self.mono.iter().take(self.win_size / 2 + 1)
             .map(|c| (c.re * c.re + c.im * c.im) * scalar_fft)
             .collect()

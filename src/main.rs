@@ -47,7 +47,8 @@ fn main() {
     let is_first_run = {
         let code = settings.code.as_deref().unwrap_or("");
         let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
-        code.len() != 6 && !has_token
+        let has_user_id = settings.user_id.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
+        !has_user_id && code.len() != 6 && !has_token
     };
     let port = settings.overlay.port;
 
@@ -80,9 +81,10 @@ fn main() {
     let mut srv_restart_rx = overlay_tx.subscribe();
     rt.spawn(async move {
         loop {
-            let port = {
+            let (port, allow_firewall) = {
                 let s = s_srv.read().await;
-                s.settings.as_ref().unwrap().overlay.port
+                let settings = s.settings.as_ref().unwrap();
+                (settings.overlay.port, settings.allow_firewall)
             };
             
             let s_inst = s_srv.clone();
@@ -94,18 +96,20 @@ fn main() {
 
             // Wait for restart signal or server crash
             let current_port = port;
+            let current_allow_firewall = allow_firewall;
             loop {
                 tokio::select! {
                     msg = srv_restart_rx.recv() => {
                         match msg {
                             Ok(m) => {
                                 if m.contains("settings_update") {
-                                    let new_port = {
+                                    let (new_port, new_allow_firewall) = {
                                         let s = s_srv.read().await;
-                                        s.settings.as_ref().unwrap().overlay.port
+                                        let settings = s.settings.as_ref().unwrap();
+                                        (settings.overlay.port, settings.allow_firewall)
                                     };
-                                    if new_port != current_port {
-                                        info!("[Server] Port change detected ({} -> {}). Restarting...", current_port, new_port);
+                                    if new_port != current_port || new_allow_firewall != current_allow_firewall {
+                                        info!("[Server] Settings change detected (Port: {} -> {}, LAN: {} -> {}). Restarting...", current_port, new_port, current_allow_firewall, new_allow_firewall);
                                         let _ = stop_tx.send(());
                                         let _ = server_task.await;
                                         break; 

@@ -42,8 +42,9 @@ pub async fn settings_gui_handler(
     let settings = s.settings.as_ref().unwrap();
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+    let has_user_id = settings.user_id.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
 
-    if (code.is_empty() || code.len() != 6) && !has_token {
+    if !has_user_id && (code.is_empty() || code.len() != 6) && !has_token {
         return axum::response::Redirect::to("/setup").into_response();
     }
     
@@ -70,11 +71,12 @@ pub async fn setup_gui_handler(
     let settings = s.settings.as_ref().unwrap();
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
+    let has_user_id = settings.user_id.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
 
-    if (!code.is_empty() && code.len() == 6) || has_token {
+    if has_user_id || (!code.is_empty() && code.len() == 6) || has_token {
         return axum::response::Redirect::to("/settings").into_response();
     }
-    Html(include_str!("../setup.html")).into_response()
+    Html(include_str!("../ui/setup.html")).into_response()
 }
 
 pub async fn get_devices_handler() -> impl IntoResponse {
@@ -167,6 +169,7 @@ pub async fn update_settings_handler(
         Some(set) => serde_json::to_value(set).unwrap(),
         None => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Settings not initialized").into_response(),
     };
+    let original_settings_json = current_settings_json.clone();
 
     // 2. Extract potential actions and inner settings payload
     let actual_payload = if payload.get("settings").is_some() {
@@ -179,6 +182,12 @@ pub async fn update_settings_handler(
                     .unwrap_or(3000) as u16;
                 crate::utils::firewall::add_firewall_rule(port);
             }
+            if actions.get("desktop_shortcut").and_then(|v| v.as_bool()).unwrap_or(false) {
+                crate::utils::create_desktop_shortcut();
+            }
+            if actions.get("start_menu_shortcut").and_then(|v| v.as_bool()).unwrap_or(false) {
+                crate::utils::create_start_menu_shortcut();
+            }
         }
         payload.get("settings").unwrap()
     } else {
@@ -188,18 +197,22 @@ pub async fn update_settings_handler(
     // 3. Deep Merge the partial update
     merge_json(&mut current_settings_json, actual_payload);
 
+    let changed = current_settings_json != original_settings_json;
+
     // 4. Convert back to Settings struct and validate
     match serde_json::from_value::<Settings>(current_settings_json) {
         Ok(new_settings) => {
-            s.settings = Some(new_settings.clone());
-            crate::config::save_settings(&new_settings);
+            if changed {
+                s.settings = Some(new_settings.clone());
+                crate::config::save_settings(&new_settings);
 
-            if let Some(tx) = &s.rpc_tx {
-                let _ = tx.send(crate::RpcCommand::Refresh);
+                if let Some(tx) = &s.rpc_tx {
+                    let _ = tx.send(crate::RpcCommand::Refresh);
+                }
+
+                info!("[Server] Settings updated (Partial). Triggering reload...");
+                let _ = handle.tx.send(json!({ "type": "settings_update" }).to_string());
             }
-
-            info!("[Server] Settings updated (Partial). Triggering reload...");
-            let _ = handle.tx.send(json!({ "type": "settings_update" }).to_string());
             json!({ "status": "success" }).to_string().into_response()
         }
         Err(e) => {
@@ -273,9 +286,11 @@ pub async fn get_status_handler(
     State((state, _)): State<(AppState, Arc<ServerHandle>)>,
 ) -> impl IntoResponse {
     let s = state.read().await;
+    let is_linked = s.settings.as_ref().map(|st| st.session_token.is_some()).unwrap_or(false);
     axum::Json(json!({
         "arrpcDetected": s.arrpc_detected,
         "wsStatus": s.ws_status,
         "rpcStatus": s.rpc_status,
+        "isLinked": is_linked,
     }))
 }

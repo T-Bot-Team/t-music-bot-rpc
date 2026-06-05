@@ -102,7 +102,7 @@ pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
                 let (listeners, is_playing) = {
                     let s = state_clone.blocking_read();
                     let is_p = s.last_track.as_ref().map(|t| t.status == "playing").unwrap_or(false);
-                    (s.overlay_tx.receiver_count(), is_p)
+                    (s.viz_tx.receiver_count(), is_p)
                 };
 
                 let should_pause = listeners == 0 || !is_playing;

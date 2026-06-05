@@ -59,7 +59,21 @@ const createPicker = (id, defaultColor) => {
 };
 
 const el = (id) => document.getElementById(id);
-let initialPort = 3000, g_audioDevice = "default", g_currentSettings = null, g_initialUIState = null;
+
+const setSelectValue = (id, val) => {
+    const e = el(id);
+    if (!e) return;
+    e.value = val;
+    if (e.tagName === 'SELECT') {
+        Array.from(e.options).forEach(opt => {
+            opt.selected = (opt.value === val);
+        });
+        e.dispatchEvent(new Event('change', { bubbles: true }));
+        e.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+};
+
+let initialPort = 3000, g_audioDevice = "default", g_currentSettings = null, g_initialUIState = null, g_isLoadingSettings = false;
 
 const PRESETS = {
     'balanced': { samples: 8192, smooth: 12 },
@@ -124,6 +138,7 @@ function updateBorderVisibility() {
     }
     
     if (row) {
+        row.classList.toggle('disabled', !enabled);
         const pickerWrap = row.querySelector('.picker-wrap');
         if (pickerWrap) {
             pickerWrap.style.opacity = enabled ? '1' : '0.5';
@@ -143,7 +158,16 @@ function updateBorderVisibility() {
 
 function applyConditionalVisibility() {
     const overlayEnabled = el('sys_overlayEnabled').checked;
-    const vizEnabled = el('sys_vizEnabled').checked;
+    const layout = el('overlay_layout')?.value || 'full';
+    const isFullCinematic = layout === 'full';
+    
+    // Hide visualizer toggle option if not in full cinematic mode
+    const wrapVizToggle = el('wrap_viz_toggle');
+    if (wrapVizToggle) {
+        wrapVizToggle.style.display = (overlayEnabled && isFullCinematic) ? 'flex' : 'none';
+    }
+    
+    const vizEnabled = el('sys_vizEnabled').checked && isFullCinematic;
     
     // Hide entire cards if their main feature is disabled
     el('card_overlay').style.display = overlayEnabled ? 'block' : 'none';
@@ -163,9 +187,9 @@ function applyConditionalVisibility() {
     if (overlayEnabled) guide.classList.remove('hidden');
     else guide.classList.add('hidden');
 
-    // 🚀 FPS toggle visibility
+    // 🚀 FPS toggle visibility (only for Full Cinematic mode)
     const fpsToggle = el('wrap_fps_toggle');
-    if (fpsToggle) fpsToggle.style.display = vizEnabled ? 'flex' : 'none';
+    if (fpsToggle) fpsToggle.style.display = (vizEnabled && layout === 'full') ? 'flex' : 'none';
     
     // 🚀 Global Sync (Cover Art) Logic
     const syncEnabled = el('overlay_globalSync').checked;
@@ -189,6 +213,7 @@ function applyConditionalVisibility() {
             card.style.opacity = colorsLocked ? '0.65' : '1';
             card.style.pointerEvents = colorsLocked ? 'none' : 'auto';
             card.style.transition = 'all 0.3s ease';
+            card.classList.toggle('locked', colorsLocked);
             
             // Add a "Controlled by Sync" overlay if not present
             let overlay = card.querySelector('.sync-lock-overlay');
@@ -276,7 +301,10 @@ function updateOBSGuide() {
 document.addEventListener("DOMContentLoaded", () => {
     const layoutSelect = el('overlay_layout');
     if (layoutSelect) {
-        layoutSelect.addEventListener('change', updateOBSGuide);
+        layoutSelect.addEventListener('change', () => {
+            updateOBSGuide();
+            applyConditionalVisibility();
+        });
     }
     
     // Trigger conditional visibility updates on user interaction
@@ -587,13 +615,20 @@ if (ipcSelect) {
 }
 
 async function loadSettings(settingsToLoad) {
+    g_isLoadingSettings = true;
     try {
         const isReset = !!settingsToLoad;
         const state = settingsToLoad || window.__SETTINGS__ || await (await fetch('/api/settings', { cache: 'no-store' })).json();
+        window.__SETTINGS__ = null;
         if (!isReset) g_currentSettings = state;
         const o = state.overlay || {}, v = o.visualizer || {}, r = state.rpc || {};
         const setS = (id, val) => { 
-            const e = el(id); if(!e) return; e.value = val; 
+            const e = el(id); if(!e) return;
+            if (e.tagName === 'SELECT') {
+                setSelectValue(id, val);
+            } else {
+                e.value = val;
+            }
             if(e.type==='range') { 
                 const displayId = id.replace('viz_smoothing','smooth').replace('viz_sensitivity','sens').replace('viz_multiplier','mult').replace('viz_','').replace('overlay_','').replace('backgroundOpacity','bgOp').replace('thumbOpacity','thumbOp').replace('textAnimationDuration','textDur');
                 const disp = el('val_'+displayId); if(disp) disp.innerText = val; 
@@ -652,6 +687,9 @@ async function loadSettings(settingsToLoad) {
             setTimeout(() => { g_initialUIState = buildUIState(); }, 500);
         }
     } catch (e) { console.error("Load failed", e); }
+    finally {
+        g_isLoadingSettings = false;
+    }
 }
 
 async function resetSection(section) {
@@ -680,14 +718,14 @@ async function resetSection(section) {
             applyConditionalVisibility();
         }
         else if (section === 'overlay') { 
-            el('overlay_layout').value = o.layout;
-            el('overlay_bgStyle').value = 'blur';
+            setSelectValue('overlay_layout', o.layout);
+            setSelectValue('overlay_bgStyle', 'blur');
             el('overlay_backgroundOpacity').value = o.backgroundOpacity;
             el('overlay_thumbOpacity').value = o.thumbnailOpacity;
             el('overlay_centerText').checked = o.centerText;
             el('overlay_globalSync').checked = o.globalSync;
             el('overlay_textAnim').checked = o.enableTextAnimation;
-            el('overlay_textAnimationMode').value = o.textAnimationMode;
+            setSelectValue('overlay_textAnimationMode', o.textAnimationMode);
             el('overlay_textAnimationDuration').value = o.textAnimationDuration;
             
             if (el('val_bgOp')) el('val_bgOp').innerText = o.backgroundOpacity;
@@ -715,8 +753,8 @@ async function resetSection(section) {
             updateBorderVisibility();
         }
         else if (section === 'visualizer') { 
-            el('viz_mode').value = v.mode;
-            el('viz_type').value = v.visualizerType;
+            setSelectValue('viz_mode', v.mode);
+            setSelectValue('viz_type', v.visualizerType);
             el('viz_rounded').checked = v.rounded;
             el('viz_glow').checked = v.glow;
             
@@ -760,6 +798,7 @@ async function resetSection(section) {
 }
 
 async function saveSettings() {
+    if (g_isLoadingSettings) return;
     try {
         if (!g_initialUIState) return;
         const currentUI = buildUIState();
@@ -824,8 +863,27 @@ async function checkStatus() {
     try {
         const res = await fetch('/api/status', { cache: 'no-store' });
         const status = await res.json();
-        const userId = el('sys_userId').value.trim();
         
+        const sysCode = el('sys_code');
+        if (sysCode) {
+            const isUIVisuallyLinked = sysCode.disabled && sysCode.value === "✓ LINKED";
+            if (isUIVisuallyLinked && status.isLinked === false) {
+                sysCode.value = "";
+                sysCode.placeholder = "000000";
+                sysCode.disabled = false;
+                sysCode.style = "";
+                
+                const statusLabel = el('status');
+                if (statusLabel) {
+                    statusLabel.innerText = "Stale connection. Please enter a new pairing code.";
+                    statusLabel.className = 'status-err';
+                }
+            } else if (!isUIVisuallyLinked && status.isLinked === true) {
+                loadSettings();
+            }
+        }
+
+        const userId = el('sys_userId').value.trim();
         if (status.arrpcDetected) {
             if (!userId) {
                 showAuthModal();
@@ -958,7 +1016,9 @@ function checkDirtyState() {
 
 document.querySelectorAll('input, select').forEach(input => {
     input.addEventListener('change', checkDirtyState);
-    input.addEventListener('input', checkDirtyState);
+    if (input.type !== 'range') {
+        input.addEventListener('input', checkDirtyState);
+    }
 });
 
 // Load Logo

@@ -101,7 +101,7 @@ async function saveSettings(e) {
             body: JSON.stringify({
                 settings: state,
                 actions: {
-                    desktopShortcut: el('sys_desktopShortcut').checked,
+                    desktop_shortcut: el('sys_desktopShortcut').checked,
                     start_menu_shortcut: el('sys_startMenuShortcut').checked,
                     allow_firewall: el('sys_allowFirewall') ? el('sys_allowFirewall').checked : false
                 }

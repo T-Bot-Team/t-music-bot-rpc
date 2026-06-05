@@ -1,131 +1,83 @@
-# T_Music_Bot RPC
+# T_Music_Bot RPC (Rust)
 
-A lightweight, cross-platform Discord Rich Presence (RPC) client for **T_Music_Bot**. This client displays your current music activity from the bot directly on your Discord profile and provides a high-quality OBS visualizer overlay.
-
-## Features
-
-- **Cross-Platform:** Native support for Windows and Linux.
-- **Lightweight:** Minimal CPU and memory usage (~40MB executable).
-- **Auto-Setup:** Easy pairing process via Discord with automatic 6-digit code detection.
-- **GUI & Tray:** Integrated system tray with a clean setup interface and real-time status updates.
-- **OBS Visualizer Overlay:** Amazing-looking 1360x440 audio-responsive overlay with customizable modes (classic, wave, neon, etc.).
-
-## Installation
-
-### For Users
-Download the latest version for your operating system from the [Releases](https://github.com/TehPig/t-music-bot-rpc/releases) page.
-
-#### Windows
-1. Run `t-music-bot-rpc.exe`.
-2. Follow the GUI instructions to pair with Discord.
-3. If prompted, click **Yes** to automatically install the Visualizer component.
-4. The app will minimize to your system tray.
-
-#### Linux
-1. Give the binary execution permissions: `chmod +x t-music-bot-rpc-linux`.
-2. Run the binary.
-3. **Note:** On Linux, the app will automatically background itself. Use the `--foreground` flag if you want to keep it in the terminal.
-4. **Note:** On some Linux environments, you may need to manually enter your Discord User ID in `settings.json` if automatic detection fails.
+A blazing-fast, lightweight, and cross-platform (Windows, macOS, Linux) Discord Rich Presence (RPC) and OBS Overlay client for **T_Music_Bot**, rewritten in native **Rust** for maximum performance and efficiency.
 
 ---
 
-## Configuration Guide
+## 🎨 Layout Modes & Visualizer Features
 
-The `settings.json` file is generated automatically on the first run. Below are the available options and their valid ranges:
+T_Music_Bot RPC provides a premium, responsive Web UI dashboard and customizable overlays for streaming or desktop enhancement.
 
-### Core Settings
-| Key | Type | Description |
-| :--- | :--- | :--- |
-| `code` | String | The 6-digit pairing code from Discord (`/rpc connect`). |
-| `userId` | String | Your Discord User ID (Numeric). Auto-detected on most systems. |
+### 1. Overlay Layout Modes
+Configure overlays at the click of a button to match your stream layout:
+- **Full Cinematic Mode**: Gorgeous full-width design featuring uploader details, track metadata, progress indicators, responsive spectrum bars, and a glassmorphic pause overlay.
+- **Compact Bar Mode**: A layout that places uploader details side-by-side with visualizer spectrum bars.
+- **Compact Minimal Mode**: Space-saving card displaying uploader avatar and current track metadata, perfect for stream corners.
 
-### Overlay Settings (`overlay`)
-| Key | Default | Description |
-| :--- | :--- | :--- |
-| `enabled` | `false` | Enable/Disable the browser overlay server. |
-| `port` | `3000` | The local port used to access the overlay. |
+### 2. Audio Spectrum & FFT Engine
+A high-accuracy frequency analyzer built directly into the client:
+- **Logarithmic & Linear Mapping**: Choose logarithmic bands for natural human hearing weighting (responsive bass and mids) or linear bands for equal frequency distribution.
+- **CPAL Audio Loopback**: Low-latency loopback capture that automatically binds to any default or virtual audio hardware.
+- **Automated CPU Suspend**: Suspends audio thread capturing (reducing CPU usage to 0%) if no browser overlay or OBS source is active.
+- **Attack/Decay Inertia**: Calibrate bar response times (rise/fall speeds) using settings presets:
+  - `Reactive`: Fast, instantaneous beats (perfect for high-BPM/electronic tracks).
+  - `Balanced`: Clean, standard visualizer inertia.
+  - `Smooth`: Gentle, fluid transitions.
 
-### Visualizer Settings (`overlay.visualizer`)
-| Key | Range | Default | Description |
+### 3. Dynamic Color Shuffling & Theme Engine
+- **Global Sync Mode**: Dynamically extracts dominant colors from the active album cover art to colorize uploader texts, canvas bars, borders, and ambient glow backdrops.
+- **Static Gradients**: Lock the theme to customized linear gradients.
+- **Random Shuffling**: Shuffles custom color palettes automatically on every new track.
+- **Neon Glow Overlays**: Adds high-fidelity ambient glow shadows behind visualizer bars.
+
+---
+
+## 📖 Guides & Documentation
+
+To configure isolated audio capturing (on Windows, macOS, or Linux), integrate the visualizer into your setup, or build/contribute from source, refer to the documentation:
+
+* 🔌 **[Audio Isolation & Routing Guide](docs/voicemeeter_cable_guide.md)**: Walkthrough for VB-Cable, Voicemeeter, and PipeWire/CoreAudio to isolate music visualizer audio from system sounds, games, and voice calls.
+* 🖥️ **[OBS Studio Integration Tour](docs/obs_setup_guide.md)**: Step-by-step setup for browser sources, viewport scaling, transparency filters, and performance settings.
+* 🎛️ **[Dashboard Tour](docs/dashboard_tour.md)**: Explore the settings control panel, presets, and customized visual styling options.
+* ⚡ **[Performance Benchmarks](docs/performance_comparison.md)**: Detailed resource comparison showing CPU/RAM reductions of the native Rust rewrite vs. the legacy TypeScript version.
+* 🛠️ **[Compiling Guide](docs/compiling.md)**: Step-by-step instructions for compiling from source and project codebase walkthrough.
+* 🤝 **[Contributing Guidelines](CONTRIBUTING.md)**: Standard workflow rules, code quality guidelines, and PR procedures for contributors.
+
+---
+
+## 🛠️ Configuration Settings
+
+Settings are stored in `settings.json` in your local directory and can be configured via the Web Dashboard:
+
+| Section | Key | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | `true/false` | `false` | Enable audio capture and rendering. |
-| `audioDevice` | String | `""` | Exact name of your audio output (Use `--list` to find). |
-| `fps` | `30 - 240` | `60` | Target refresh rate for the animation. |
-| `samples` | `512 - 16384`| `2048` | FFT Sample size. Must be a power of 2. |
-| `bars` | `1 - 2048` | `64` | Number of frequency bars to display. |
-| `smoothing` | `1 - 20` | `3` | How much the bars "lag" behind the audio. |
-| `sensitivity` | `1 - 100` | `40` | Responsiveness to quiet sounds. |
-| `multiplier` | `1 - 100` | `40` | Visual height multiplier for the bars. |
-| `colorTop` | Hex | `#7cf6ff` | The color at the top of the bars. |
-| `colorBottom`| Hex | `#1a69a8` | The color at the base of the bars. |
-| `mode` | String | `"bars"` | See **Visualizer Modes** below. |
-| `rounded` | `true/false` | `true` | Enable rounded corners on bars. |
-| `glow` | `true/false` | `false` | Enable neon outer glow (Performance heavy). |
-
-### Visualizer Modes
-- `bars`: Standard vertical frequency bars.
-- `wave`: Smooth animated waveform.
-- `particles`: Floating dots representing frequencies.
-- `neon-bars`: Thin, high-contrast neon styling.
-- `led`: Segmented block-style frequency meter.
-- `outline`: Hollow bar outlines.
-- `center-bars`: Bars that grow outwards from the vertical center.
+| **Core** | `code` | `""` | 6-digit Discord pairing authorization code. |
+| **Core** | `userId` | `""` | Numeric Discord User ID (auto-detected on connect). |
+| **Overlay** | `port` | `3000` | Web server port for dashboard (`/settings`) and overlay (`/`). |
+| **Overlay** | `layout` | `"full"` | Active layout (`"full"`, `"compact-bar"`, or `"compact-minimal"`). |
+| **Visualizer** | `enabled` | `false` | Enable/disable CPAL audio loopback visualizer engine. |
+| **Visualizer** | `audioDevice` | `"default"`| Input/output loopback device name. |
+| **Visualizer** | `fps` | `60` | Spectrum rendering frames per second (`30 - 240`). |
+| **Visualizer** | `samples` | `4096` | FFT frequency window size (`512 - 16384`). |
+| **Visualizer** | `bars` | `64` | Visualizer frequency bars count. |
+| **Visualizer** | `smoothing` | `6` | Inertia/decay inertia coefficient (`1 - 20`). |
+| **Visualizer** | `sensitivity`| `45` | Lower threshold in decibels for bar scaling (`10 - 100`). |
+| **Visualizer** | `multiplier` | `25` | Height multiplier scaling factor. |
 
 ---
 
-## Configuration & Logs
+## 🚀 Getting Started
 
-Settings and logs are stored in the same directory as the executable:
-- `settings.json`: Stores your pairing code, audio device selection, and overlay preferences.
-- `logs.txt`: Contains application logs for troubleshooting.
-- `.lock`: A temporary file used to prevent multiple instances from running.
+If you are an end-user, follow these quick steps:
+1. Download the standalone executable for your operating system from the **Releases** page.
+2. Run the application.
+3. Use the `/rpc connect` slash command on Discord to obtain your pairing code.
+4. Input the code in the setup dialog. Once linked successfully, the client will run silently inside your **System Tray**.
+5. Double-click the tray icon to open the configuration dashboard (`http://localhost:3000/settings`).
 
-## OBS Setup
-To use the overlay in OBS:
-1. Add a **Browser Source**.
-2. URL: `http://localhost:3000` (port can be changed in settings).
-3. Width: `1360`
-4. Height: `440`
+*Note for developers: If you prefer to compile from source or run developer builds, please refer directly to the [Compiling Guide](docs/compiling.md).*
 
 ---
 
-## Command Line Options
-
-- `--list`: List all available audio output devices for the visualizer.
-- `--quiet` or `-q`: Disable most logging to console and `logs.txt`.
-- `--foreground`: (Linux only) Prevent the app from backgrounding itself.
-- `--debug-fft`: Enable detailed FFT analysis logging.
-
-## Building from Source
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18.16.0 or higher recommended)
-
-### Steps
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/TehPig/t-music-bot-rpc.git
-   cd t-music-bot-rpc
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Build the binaries:**
-   ```bash
-   npm run build    # Compiles TypeScript and prepares dist/ folder
-   npm run package  # Generates standalone binaries
-   ```
-
----
-
-## License
+## ⚖️ License
 [CC BY-NC-ND 4.0](LICENSE)
-
-This project is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
-
-- **Attribution:** You must give appropriate credit.
-- **Non-Commercial:** You may not use the material for commercial purposes.
-- **No-Derivatives:** If you remix, transform, or build upon the material, you may not distribute the modified material.

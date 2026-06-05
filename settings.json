@@ -1,0 +1,86 @@
+{
+  "code": null,
+  "userId": "298432708269441034",
+  "sessionToken": "8cc469d3-5b42-47f7-9633-0d3e00b81bcf",
+  "savedCodes": {
+    "1504684558065471506": "183471",
+    "298432708269441034": "858558"
+  },
+  "overlay": {
+    "enabled": true,
+    "port": 32000,
+    "layout": "full",
+    "showBackground": false,
+    "backgroundOpacity": 0.85,
+    "thumbnailOpacity": 0.5,
+    "centerText": true,
+    "globalSync": false,
+    "enableTextAnimation": true,
+    "textAnimationMode": "dynamic",
+    "textAnimationDuration": 10,
+    "textStyle": {
+      "isStatic": false,
+      "random": false,
+      "top": "#f81616",
+      "bottom": "#15813d"
+    },
+    "borderStyle": {
+      "isStatic": false,
+      "random": false,
+      "top": "#38bdf8",
+      "bottom": "#0b648c"
+    },
+    "elementStyle": {
+      "isStatic": false,
+      "random": false,
+      "top": "#983636",
+      "bottom": "#fb0909"
+    },
+    "background": {
+      "enabled": true,
+      "color": "rgba(0,0,0,0.85)",
+      "useGradient": false,
+      "gradient": {
+        "isStatic": false,
+        "random": false,
+        "top": "#7cf6ff",
+        "bottom": "#1a69a8"
+      }
+    },
+    "visualizer": {
+      "enabled": true,
+      "debugFps": true,
+      "audioDevice": "Voicemeeter AUX Input (VB-Audio Voicemeeter VAIO)",
+      "samples": 4096,
+      "bars": 78,
+      "smoothing": 6,
+      "sensitivity": 20,
+      "multiplier": 50,
+      "audioReactionDelay": 3,
+      "visualFluidity": 0.15,
+      "barWidth": 10,
+      "barGap": 5,
+      "gradient": {
+        "isStatic": false,
+        "random": false,
+        "top": "#7cf6ff",
+        "bottom": "#1a69a8"
+      },
+      "mode": "bars",
+      "glow": false,
+      "rounded": true,
+      "toggleAnimation": true,
+      "horizontalSmoothing": true,
+      "animationSpeed": 1.0,
+      "fps": 165,
+      "visualizerType": "logarithmic"
+    },
+    "showThumbnailBackground": true,
+    "thumbnailBackgroundOpacity": 0.35
+  },
+  "rpc": {
+    "swapRpcLines": false,
+    "ipcPipe": -1
+  },
+  "allowFirewall": true
+}

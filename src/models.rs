@@ -14,12 +14,12 @@ fn default_fps() -> u32 { 60 }
 fn default_bg_color() -> String { "rgba(0,0,0,0.85)".to_string() }
 fn default_status() -> String { "idle".to_string() }
 fn default_viz_type() -> String { "logarithmic".to_string() }
-fn default_smoothing() -> u32 { 6 }
+fn default_smoothing() -> u32 { 12 }
 fn default_device() -> String { "default".to_string() }
-fn default_samples() -> u32 { 4096 }
+fn default_samples() -> u32 { 8192 }
 fn default_bars() -> u32 { 64 }
 fn default_sensitivity() -> u32 { 45 }
-fn default_multiplier() -> u32 { 25 }
+fn default_multiplier() -> u32 { 35 }
 fn default_reaction() -> u32 { 3 }
 fn default_fluidity() -> f32 { 0.15 }
 fn default_bar_width() -> u32 { 10 }

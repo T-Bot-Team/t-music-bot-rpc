@@ -52,14 +52,6 @@
                         </label>
                     </div>
 
-                    <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 14px 20px; border-radius: 12px; border: 1px solid var(--border); box-sizing: border-box; width: 100%;">
-                        <span class="toggle-text" style="font-weight: 600; font-size: 0.95rem;">Allow LAN Access (Adds Firewall Rule)</span>
-                        <label class="switch" style="flex-shrink: 0;">
-                            <input type="checkbox" id="sys_allowFirewall">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-
                     <div id="overlay_options" class="hidden-section">
                         <div class="field">
                             <label>Application Port</label>
@@ -97,6 +89,10 @@
                         <label class="toggle-item">
                             <input type="checkbox" id="sys_startMenuShortcut" checked>
                             <span class="toggle-text">Add to Start Menu</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="sys_allowFirewall" checked>
+                            <span class="toggle-text">Allow LAN Access (Firewall Rule)</span>
                         </label>
                     </div>
                     <div class="desc" style="margin-top: 12px;">Customize how your status looks to others.</div>

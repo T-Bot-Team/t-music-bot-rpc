@@ -1,0 +1,772 @@
+{
+  "communities": {
+    "0": [
+      "handlers_rpc_connect",
+      "handlers_rpc_destroyrpc",
+      "handlers_rpc_formattrackdata",
+      "handlers_rpc_lastmessagetime",
+      "handlers_rpc_shutdown",
+      "handlers_rpc_state",
+      "handlers_rpc_updateactivity",
+      "handlers_rpc_updatediscordactivity",
+      "handlers_rpc_waitfordisconnect",
+      "handlers_server_broadcast",
+      "handlers_server_gethtml",
+      "handlers_server_processthumbnail",
+      "handlers_server_start",
+      "handlers_server_stop",
+      "handlers_server_updatetrack",
+      "handlers_visualizer_init",
+      "handlers_visualizer_kill",
+      "handlers_visualizer_listdevices",
+      "handlers_visualizer_startcapture",
+      "handlers_visualizer_validate",
+      "lib_logger_log",
+      "lib_tray_traycontroller",
+      "lib_tray_traycontroller_constructor",
+      "lib_tray_traycontroller_init",
+      "lib_tray_traycontroller_kill",
+      "lib_tray_traycontroller_sendaction",
+      "lib_tray_traycontroller_updatestatus",
+      "lib_tray_trayitem",
+      "lib_tray_traymenu",
+      "lib_ui_getpairingcode",
+      "typescript_handlers_rpc_ts",
+      "typescript_handlers_server_ts",
+      "typescript_handlers_visualizer_ts",
+      "typescript_index_checklock",
+      "typescript_index_cleanup",
+      "typescript_index_lockfile",
+      "typescript_index_main",
+      "typescript_index_prepareffmpeg",
+      "typescript_index_savesettings",
+      "typescript_index_ts",
+      "typescript_lib_logger_ts",
+      "typescript_lib_tray_ts",
+      "typescript_lib_ui_ts",
+      "typescript_utils_constants_ts",
+      "utils_constants_global_state",
+      "utils_constants_globalstate",
+      "utils_constants_is_debug_fft",
+      "utils_constants_is_pkg",
+      "utils_constants_overlayconfig",
+      "utils_constants_paths",
+      "utils_constants_settings",
+      "utils_constants_trackupdate",
+      "utils_constants_visualizerconfig",
+      "utils_constants_ws_url"
+    ],
+    "1": [
+      "assets_pickr_min",
+      "assets_pickr_min_a",
+      "assets_pickr_min_b",
+      "assets_pickr_min_c",
+      "assets_pickr_min_e",
+      "assets_pickr_min_e_addswatch",
+      "assets_pickr_min_e_applycolor",
+      "assets_pickr_min_e_bindevents",
+      "assets_pickr_min_e_buildcomponents",
+      "assets_pickr_min_e_clearcolor",
+      "assets_pickr_min_e_constructor",
+      "assets_pickr_min_e_destroy",
+      "assets_pickr_min_e_destroyandremove",
+      "assets_pickr_min_e_disable",
+      "assets_pickr_min_e_emit",
+      "assets_pickr_min_e_enable",
+      "assets_pickr_min_e_finalbuild",
+      "assets_pickr_min_e_getcolor",
+      "assets_pickr_min_e_getcolorrepresentation",
+      "assets_pickr_min_e_getroot",
+      "assets_pickr_min_e_getselectedcolor",
+      "assets_pickr_min_e_hide",
+      "assets_pickr_min_e_isopen",
+      "assets_pickr_min_e_off",
+      "assets_pickr_min_e_on",
+      "assets_pickr_min_e_parselocalcolor",
+      "assets_pickr_min_e_prebuild",
+      "assets_pickr_min_e_removeswatch",
+      "assets_pickr_min_e_repositioningpicker",
+      "assets_pickr_min_e_setcolor",
+      "assets_pickr_min_e_setcolorrepresentation",
+      "assets_pickr_min_e_sethsva",
+      "assets_pickr_min_e_show",
+      "assets_pickr_min_e_t",
+      "assets_pickr_min_e_updateoutput",
+      "assets_pickr_min_f",
+      "assets_pickr_min_g",
+      "assets_pickr_min_i",
+      "assets_pickr_min_js",
+      "assets_pickr_min_k",
+      "assets_pickr_min_l",
+      "assets_pickr_min_n",
+      "assets_pickr_min_o",
+      "assets_pickr_min_p",
+      "assets_pickr_min_r",
+      "assets_pickr_min_s",
+      "assets_pickr_min_v",
+      "assets_pickr_min_w",
+      "assets_pickr_min_y"
+    ],
+    "2": [
+      "src_models_backgroundconfig",
+      "src_models_backgroundconfig_default",
+      "src_models_default_animation_speed",
+      "src_models_default_bar_gap",
+      "src_models_default_bar_width",
+      "src_models_default_bars",
+      "src_models_default_bg_color",
+      "src_models_default_bg_opacity",
+      "src_models_default_border_style",
+      "src_models_default_color_bottom",
+      "src_models_default_color_top",
+      "src_models_default_device",
+      "src_models_default_element_style",
+      "src_models_default_false",
+      "src_models_default_fluidity",
+      "src_models_default_fps",
+      "src_models_default_ipc_pipe",
+      "src_models_default_layout",
+      "src_models_default_mode",
+      "src_models_default_multiplier",
+      "src_models_default_port",
+      "src_models_default_reaction",
+      "src_models_default_samples",
+      "src_models_default_sensitivity",
+      "src_models_default_smoothing",
+      "src_models_default_status",
+      "src_models_default_text_anim_duration",
+      "src_models_default_text_anim_mode",
+      "src_models_default_text_style",
+      "src_models_default_thumb_bg_opacity",
+      "src_models_default_thumb_opacity",
+      "src_models_default_true",
+      "src_models_default_viz_type",
+      "src_models_globalstate",
+      "src_models_gradientconfig",
+      "src_models_gradientconfig_default",
+      "src_models_overlayconfig",
+      "src_models_overlayconfig_default",
+      "src_models_rpccommand",
+      "src_models_rpcconfig",
+      "src_models_rpcconfig_default",
+      "src_models_rs",
+      "src_models_settings",
+      "src_models_settings_default",
+      "src_models_trackupdate",
+      "src_models_visualizerconfig",
+      "src_models_visualizerconfig_default"
+    ],
+    "3": [
+      "assets_gui_applyconditionalvisibility",
+      "assets_gui_applypreset",
+      "assets_gui_builduistate",
+      "assets_gui_cards",
+      "assets_gui_checkactivepreset",
+      "assets_gui_checkbox",
+      "assets_gui_checkdirtystate",
+      "assets_gui_checkstatus",
+      "assets_gui_createpicker",
+      "assets_gui_deepmerge",
+      "assets_gui_el",
+      "assets_gui_fetchdevices",
+      "assets_gui_fetchdiscordclients",
+      "assets_gui_form",
+      "assets_gui_getdiff",
+      "assets_gui_idinput",
+      "assets_gui_initcustomselects",
+      "assets_gui_ipcselect",
+      "assets_gui_layoutselect",
+      "assets_gui_loadsettings",
+      "assets_gui_logo",
+      "assets_gui_navitems",
+      "assets_gui_navobserver",
+      "assets_gui_observeroptions",
+      "assets_gui_pickers",
+      "assets_gui_presets",
+      "assets_gui_resetbtn",
+      "assets_gui_resetsection",
+      "assets_gui_savesettings",
+      "assets_gui_setselectvalue",
+      "assets_gui_showauthmodal",
+      "assets_gui_status",
+      "assets_gui_stripalpha",
+      "assets_gui_target",
+      "assets_gui_textnode",
+      "assets_gui_textwrapper",
+      "assets_gui_updatebordervisibility",
+      "assets_gui_updateobsguide",
+      "assets_gui_updatepickervisibility",
+      "assets_gui_visiblenavs",
+      "src_ui_assets_gui_js"
+    ],
+    "4": [
+      "t_music_bot_rpc_rust_settings_background_color",
+      "t_music_bot_rpc_rust_settings_background_enabled",
+      "t_music_bot_rpc_rust_settings_background_usegradient",
+      "t_music_bot_rpc_rust_settings_borderstyle_bottom",
+      "t_music_bot_rpc_rust_settings_borderstyle_isstatic",
+      "t_music_bot_rpc_rust_settings_borderstyle_random",
+      "t_music_bot_rpc_rust_settings_borderstyle_top",
+      "t_music_bot_rpc_rust_settings_elementstyle_bottom",
+      "t_music_bot_rpc_rust_settings_elementstyle_isstatic",
+      "t_music_bot_rpc_rust_settings_elementstyle_random",
+      "t_music_bot_rpc_rust_settings_elementstyle_top",
+      "t_music_bot_rpc_rust_settings_overlay",
+      "t_music_bot_rpc_rust_settings_overlay_background",
+      "t_music_bot_rpc_rust_settings_overlay_backgroundopacity",
+      "t_music_bot_rpc_rust_settings_overlay_borderstyle",
+      "t_music_bot_rpc_rust_settings_overlay_centertext",
+      "t_music_bot_rpc_rust_settings_overlay_elementstyle",
+      "t_music_bot_rpc_rust_settings_overlay_enabled",
+      "t_music_bot_rpc_rust_settings_overlay_enabletextanimation",
+      "t_music_bot_rpc_rust_settings_overlay_globalsync",
+      "t_music_bot_rpc_rust_settings_overlay_layout",
+      "t_music_bot_rpc_rust_settings_overlay_port",
+      "t_music_bot_rpc_rust_settings_overlay_showbackground",
+      "t_music_bot_rpc_rust_settings_overlay_showthumbnailbackground",
+      "t_music_bot_rpc_rust_settings_overlay_textanimationduration",
+      "t_music_bot_rpc_rust_settings_overlay_textanimationmode",
+      "t_music_bot_rpc_rust_settings_overlay_textstyle",
+      "t_music_bot_rpc_rust_settings_overlay_thumbnailbackgroundopacity",
+      "t_music_bot_rpc_rust_settings_overlay_thumbnailopacity",
+      "t_music_bot_rpc_rust_settings_textstyle_bottom",
+      "t_music_bot_rpc_rust_settings_textstyle_isstatic",
+      "t_music_bot_rpc_rust_settings_textstyle_random",
+      "t_music_bot_rpc_rust_settings_textstyle_top"
+    ],
+    "5": [
+      "t_music_bot_rpc_rust_settings_background_gradient",
+      "t_music_bot_rpc_rust_settings_gradient_bottom",
+      "t_music_bot_rpc_rust_settings_gradient_isstatic",
+      "t_music_bot_rpc_rust_settings_gradient_random",
+      "t_music_bot_rpc_rust_settings_gradient_top",
+      "t_music_bot_rpc_rust_settings_overlay_visualizer",
+      "t_music_bot_rpc_rust_settings_visualizer_animationspeed",
+      "t_music_bot_rpc_rust_settings_visualizer_audiodevice",
+      "t_music_bot_rpc_rust_settings_visualizer_audioreactiondelay",
+      "t_music_bot_rpc_rust_settings_visualizer_bargap",
+      "t_music_bot_rpc_rust_settings_visualizer_bars",
+      "t_music_bot_rpc_rust_settings_visualizer_barwidth",
+      "t_music_bot_rpc_rust_settings_visualizer_debugfps",
+      "t_music_bot_rpc_rust_settings_visualizer_enabled",
+      "t_music_bot_rpc_rust_settings_visualizer_fps",
+      "t_music_bot_rpc_rust_settings_visualizer_glow",
+      "t_music_bot_rpc_rust_settings_visualizer_gradient",
+      "t_music_bot_rpc_rust_settings_visualizer_horizontalsmoothing",
+      "t_music_bot_rpc_rust_settings_visualizer_mode",
+      "t_music_bot_rpc_rust_settings_visualizer_multiplier",
+      "t_music_bot_rpc_rust_settings_visualizer_rounded",
+      "t_music_bot_rpc_rust_settings_visualizer_samples",
+      "t_music_bot_rpc_rust_settings_visualizer_sensitivity",
+      "t_music_bot_rpc_rust_settings_visualizer_smoothing",
+      "t_music_bot_rpc_rust_settings_visualizer_toggleanimation",
+      "t_music_bot_rpc_rust_settings_visualizer_visualfluidity",
+      "t_music_bot_rpc_rust_settings_visualizer_visualizertype"
+    ],
+    "6": [
+      "typescript_settings_default_code",
+      "typescript_settings_default_json",
+      "typescript_settings_default_overlay",
+      "typescript_settings_default_overlay_enabled",
+      "typescript_settings_default_overlay_port",
+      "typescript_settings_default_overlay_visualizer",
+      "typescript_settings_default_userid",
+      "typescript_settings_default_visualizer_audiodevice",
+      "typescript_settings_default_visualizer_bargap",
+      "typescript_settings_default_visualizer_bars",
+      "typescript_settings_default_visualizer_barwidth",
+      "typescript_settings_default_visualizer_colorbottom",
+      "typescript_settings_default_visualizer_colortop",
+      "typescript_settings_default_visualizer_enabled",
+      "typescript_settings_default_visualizer_fps",
+      "typescript_settings_default_visualizer_glow",
+      "typescript_settings_default_visualizer_mode",
+      "typescript_settings_default_visualizer_multiplier",
+      "typescript_settings_default_visualizer_rounded",
+      "typescript_settings_default_visualizer_samplerate",
+      "typescript_settings_default_visualizer_samples",
+      "typescript_settings_default_visualizer_sensitivity",
+      "typescript_settings_default_visualizer_smoothing"
+    ],
+    "7": [
+      "typescript_settings_code",
+      "typescript_settings_json",
+      "typescript_settings_overlay",
+      "typescript_settings_overlay_enabled",
+      "typescript_settings_overlay_port",
+      "typescript_settings_overlay_visualizer",
+      "typescript_settings_userid",
+      "typescript_settings_visualizer_audiodevice",
+      "typescript_settings_visualizer_bargap",
+      "typescript_settings_visualizer_bars",
+      "typescript_settings_visualizer_barwidth",
+      "typescript_settings_visualizer_colorbottom",
+      "typescript_settings_visualizer_colortop",
+      "typescript_settings_visualizer_enabled",
+      "typescript_settings_visualizer_fps",
+      "typescript_settings_visualizer_glow",
+      "typescript_settings_visualizer_mode",
+      "typescript_settings_visualizer_multiplier",
+      "typescript_settings_visualizer_rounded",
+      "typescript_settings_visualizer_samplerate",
+      "typescript_settings_visualizer_samples",
+      "typescript_settings_visualizer_sensitivity",
+      "typescript_settings_visualizer_smoothing"
+    ],
+    "8": [
+      "build_build_script",
+      "capture_cpal_recorder",
+      "client_pairing_auth",
+      "config_settings_io",
+      "firewall_windows_helper",
+      "gui_settings_dashboard",
+      "handlers_http_endpoints",
+      "ipc_named_pipe_client",
+      "logic_presence_formatter",
+      "main_orchestrator",
+      "measurebands_audio_bands",
+      "models_domain_structures",
+      "pickr_color_library",
+      "rpc_background_worker",
+      "server_axum_router",
+      "settings_config_data",
+      "setup_setup_wizard",
+      "templates_widget_engine",
+      "tester_test_script",
+      "tray_system_tray",
+      "utils_system_helpers"
+    ],
+    "9": [
+      "server_handlers_get_defaults_handler",
+      "server_handlers_get_devices_handler",
+      "server_handlers_get_discord_clients_handler",
+      "server_handlers_get_settings_handler",
+      "server_handlers_get_status_handler",
+      "server_handlers_handle_socket",
+      "server_handlers_merge_json",
+      "server_handlers_overlay_handler",
+      "server_handlers_rpc_sync_handler",
+      "server_handlers_settings_gui_handler",
+      "server_handlers_setup_gui_handler",
+      "server_handlers_update_settings_handler",
+      "server_handlers_ws_handler",
+      "server_templates_get_html",
+      "server_templates_get_widget_scripts",
+      "server_templates_get_widget_styles",
+      "src_server_handlers_rs",
+      "src_server_templates_rs"
+    ],
+    "10": [
+      "typescript_tsconfig_compileroptions",
+      "typescript_tsconfig_compileroptions_esmoduleinterop",
+      "typescript_tsconfig_compileroptions_forceconsistentcasinginfilenames",
+      "typescript_tsconfig_compileroptions_module",
+      "typescript_tsconfig_compileroptions_moduleresolution",
+      "typescript_tsconfig_compileroptions_outdir",
+      "typescript_tsconfig_compileroptions_resolvejsonmodule",
+      "typescript_tsconfig_compileroptions_rootdir",
+      "typescript_tsconfig_compileroptions_skiplibcheck",
+      "typescript_tsconfig_compileroptions_strict",
+      "typescript_tsconfig_compileroptions_target",
+      "typescript_tsconfig_exclude",
+      "typescript_tsconfig_include",
+      "typescript_tsconfig_json"
+    ],
+    "11": [
+      "src_utils_check_for_updates",
+      "src_utils_check_lock",
+      "src_utils_create_desktop_shortcut",
+      "src_utils_create_start_menu_shortcut",
+      "src_utils_format_overlay_track",
+      "src_utils_format_rpc_track",
+      "src_utils_get_audio_devices",
+      "src_utils_get_log_path",
+      "src_utils_get_pairing_code",
+      "src_utils_log_message",
+      "src_utils_process_thumbnail",
+      "src_utils_rs",
+      "src_utils_show_error_popup"
+    ],
+    "12": [
+      "settings_json",
+      "t_music_bot_rpc_rust_settings_allowfirewall",
+      "t_music_bot_rpc_rust_settings_code",
+      "t_music_bot_rpc_rust_settings_rpc",
+      "t_music_bot_rpc_rust_settings_rpc_ipcpipe",
+      "t_music_bot_rpc_rust_settings_rpc_swaprpclines",
+      "t_music_bot_rpc_rust_settings_savedcodes",
+      "t_music_bot_rpc_rust_settings_savedcodes_1504684558065471506",
+      "t_music_bot_rpc_rust_settings_savedcodes_298432708269441034",
+      "t_music_bot_rpc_rust_settings_sessiontoken",
+      "t_music_bot_rpc_rust_settings_userid"
+    ],
+    "13": [
+      "assets_setup_checkstatus",
+      "assets_setup_el",
+      "assets_setup_fetchdevices",
+      "assets_setup_overlayopts",
+      "assets_setup_savesettings",
+      "assets_setup_toggleoverlayoptions",
+      "assets_setup_togglevizoptions",
+      "assets_setup_val",
+      "assets_setup_vizopts",
+      "src_ui_assets_setup_js"
+    ],
+    "14": [
+      "rpc_ipc_attempt_connect",
+      "rpc_ipc_clear_activity",
+      "rpc_ipc_ipcclient",
+      "rpc_ipc_ipcclient_close",
+      "rpc_ipc_ipcclient_new",
+      "rpc_ipc_ipcclient_recv",
+      "rpc_ipc_ipcclient_send",
+      "rpc_ipc_scan_discord_clients",
+      "rpc_ipc_setup_pipe",
+      "src_rpc_ipc_rs"
+    ],
+    "15": [
+      "concept_track_formatting_regex",
+      "src_setup_html",
+      "ts_handlers_rpc",
+      "ts_handlers_server",
+      "ts_handlers_visualizer",
+      "ts_index",
+      "ts_lib_logger",
+      "ts_lib_tray",
+      "ts_lib_ui"
+    ],
+    "16": [
+      "src_visualizer_smoothing_rs",
+      "visualizer_smoothing_visualfilter",
+      "visualizer_smoothing_visualfilter_apply_spatial_smoothing",
+      "visualizer_smoothing_visualfilter_apply_temporal_smoothing",
+      "visualizer_smoothing_visualfilter_generate_final_bins",
+      "visualizer_smoothing_visualfilter_get_smoothed_bars",
+      "visualizer_smoothing_visualfilter_new",
+      "visualizer_smoothing_visualfilter_reset",
+      "visualizer_smoothing_visualfilter_scale_to_audiolevel"
+    ],
+    "17": [
+      "image_album_art_with_badge",
+      "image_audio_visualizer",
+      "image_dark_minimal_theme",
+      "image_fps_counter",
+      "image_metadata_display",
+      "image_png",
+      "image_progress_bar",
+      "image_rounded_gradient_theme"
+    ],
+    "18": [
+      "src_visualizer_fft_rs",
+      "visualizer_fft_fftprocessor",
+      "visualizer_fft_fftprocessor_get_magnitudes",
+      "visualizer_fft_fftprocessor_group_frequencies",
+      "visualizer_fft_fftprocessor_new",
+      "visualizer_fft_fftprocessor_process_samples"
+    ],
+    "19": [
+      "concept_monstercat_spatial_smoothing",
+      "concept_rainmeter_k_formula",
+      "concept_smart_pause",
+      "visualizer_mod",
+      "visualizer_processor",
+      "visualizer_smoothing"
+    ],
+    "20": [
+      "src_tray_build_menu",
+      "src_tray_create_tray",
+      "src_tray_rs",
+      "src_tray_trayhandle",
+      "src_tray_update_tray_status_direct"
+    ],
+    "21": [
+      "server_mod_asset_handler",
+      "server_mod_serverhandle",
+      "server_mod_start_server",
+      "src_server_mod_rs"
+    ],
+    "22": [
+      "t_music_bot_rpc_rust_tester_activity",
+      "t_music_bot_rpc_rust_tester_client",
+      "t_music_bot_rpc_rust_tester_rpc",
+      "tester_js"
+    ],
+    "23": [
+      "rpc_mod_run_discord_worker",
+      "rpc_mod_start_rpc_handler",
+      "src_rpc_mod_rs"
+    ],
+    "24": [
+      "src_config_load_settings",
+      "src_config_rs",
+      "src_config_save_settings"
+    ],
+    "25": [
+      "rpc_logic_apply_new_state",
+      "rpc_logic_update_discord_activity_raw",
+      "src_rpc_logic_rs"
+    ],
+    "26": [
+      "build_rs",
+      "t_music_bot_rpc_rust_build_main"
+    ],
+    "27": [
+      "fft_dsp_analyzer",
+      "measurebandssmoothed_smoothing_logic"
+    ],
+    "28": [
+      "github_workflow_release",
+      "readme_md"
+    ],
+    "29": [
+      "src_main_main",
+      "src_main_rs"
+    ],
+    "30": [
+      "rpc_client_authenticate",
+      "src_rpc_client_rs"
+    ],
+    "31": [
+      "src_ui_setup_html",
+      "ui_setup_html"
+    ],
+    "32": [
+      "src_utils_firewall_rs",
+      "utils_firewall_add_firewall_rule"
+    ],
+    "33": [
+      "src_visualizer_capture_rs",
+      "visualizer_capture_start_capture"
+    ],
+    "34": [
+      "ts_settings",
+      "ts_settings_default"
+    ],
+    "35": [
+      "src_ui_gui_html",
+      "ui_gui_html"
+    ],
+    "36": [
+      "src_visualizer_mod_rs",
+      "visualizer_mod_start_visualizer"
+    ],
+    "37": [
+      "src_visualizer_processor_rs",
+      "visualizer_processor_run_processor"
+    ],
+    "38": [
+      "measurebands_inc"
+    ],
+    "39": [
+      "measurebandssmoothed_inc"
+    ],
+    "40": [
+      "typescript_declarations_d_ts"
+    ],
+    "41": [
+      "ts_declarations"
+    ],
+    "42": [
+      "ts_tsconfig"
+    ],
+    "43": [
+      "ts_utils_constants"
+    ],
+    "44": [
+      "gemini_md"
+    ]
+  },
+  "cohesion": {
+    "0": 0.06079664570230608,
+    "1": 0.08673469387755102,
+    "2": 0.0666049953746531,
+    "3": 0.09390243902439024,
+    "4": 0.06060606060606061,
+    "5": 0.08262108262108261,
+    "6": 0.08695652173913043,
+    "7": 0.08695652173913043,
+    "8": 0.1523809523809524,
+    "9": 0.13725490196078433,
+    "10": 0.14285714285714285,
+    "11": 0.20512820512820512,
+    "12": 0.18181818181818182,
+    "13": 0.3333333333333333,
+    "14": 0.5111111111111111,
+    "15": 0.2222222222222222,
+    "16": 0.2222222222222222,
+    "17": 0.42857142857142855,
+    "18": 0.4,
+    "19": 0.3333333333333333,
+    "20": 0.6,
+    "21": 0.5,
+    "22": 0.5,
+    "23": 1.0,
+    "24": 0.6666666666666666,
+    "25": 0.6666666666666666,
+    "26": 1.0,
+    "27": 1.0,
+    "28": 1.0,
+    "29": 1.0,
+    "30": 1.0,
+    "31": 1.0,
+    "32": 1.0,
+    "33": 1.0,
+    "34": 1.0,
+    "35": 1.0,
+    "36": 1.0,
+    "37": 1.0,
+    "38": 1.0,
+    "39": 1.0,
+    "40": 1.0,
+    "41": 1.0,
+    "42": 1.0,
+    "43": 1.0,
+    "44": 1.0
+  },
+  "gods": [
+    {
+      "id": "assets_pickr_min_e",
+      "label": "E",
+      "degree": 31
+    },
+    {
+      "id": "t_music_bot_rpc_rust_settings_overlay_visualizer",
+      "label": "visualizer",
+      "degree": 22
+    },
+    {
+      "id": "t_music_bot_rpc_rust_settings_overlay",
+      "label": "overlay",
+      "degree": 19
+    },
+    {
+      "id": "typescript_settings_default_overlay_visualizer",
+      "label": "visualizer",
+      "degree": 17
+    },
+    {
+      "id": "typescript_settings_overlay_visualizer",
+      "label": "visualizer",
+      "degree": 17
+    },
+    {
+      "id": "assets_gui_el",
+      "label": "el()",
+      "degree": 13
+    },
+    {
+      "id": "assets_gui_loadsettings",
+      "label": "loadSettings()",
+      "degree": 11
+    },
+    {
+      "id": "typescript_tsconfig_compileroptions",
+      "label": "compilerOptions",
+      "degree": 11
+    },
+    {
+      "id": "assets_gui_resetsection",
+      "label": "resetSection()",
+      "degree": 9
+    },
+    {
+      "id": "visualizer_smoothing_visualfilter",
+      "label": "VisualFilter",
+      "degree": 8
+    }
+  ],
+  "surprises": [
+    {
+      "source": "handlers/server.ts",
+      "target": "src/setup.html",
+      "source_files": [
+        "typescript/handlers/server.ts",
+        "src/setup.html"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories"
+    },
+    {
+      "source": "Cargo Windows Build Configuration",
+      "target": "Main Runtime Orchestrator",
+      "source_files": [
+        "build.rs",
+        "src/main.rs"
+      ],
+      "confidence": "INFERRED",
+      "relation": "conceptually_related_to",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `Cargo Windows Build Configuration` unexpectedly reaches hub `Main Runtime Orchestrator`"
+    },
+    {
+      "source": "Discord RPC JS Client Tester",
+      "target": "Discord RPC worker Context",
+      "source_files": [
+        "tester.js",
+        "src/rpc/mod.rs"
+      ],
+      "confidence": "INFERRED",
+      "relation": "conceptually_related_to",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `Discord RPC JS Client Tester` unexpectedly reaches hub `Discord RPC worker Context`"
+    },
+    {
+      "source": "Config IO Engine",
+      "target": "Settings Persistence Store",
+      "source_files": [
+        "src/config.rs",
+        "settings.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "shares_data_with",
+      "why": "connects across different repos/directories; peripheral node `Settings Persistence Store` unexpectedly reaches hub `Config IO Engine`"
+    },
+    {
+      "source": "Axum Web Application Server",
+      "target": "Pickr Color Chooser Library",
+      "source_files": [
+        "src/server/mod.rs",
+        "assets/pickr.min.js"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; peripheral node `Pickr Color Chooser Library` unexpectedly reaches hub `Axum Web Application Server`"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `overlay` connect `Community 4` to `Community 12`, `Community 5`?",
+      "why": "High betweenness centrality (0.017) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `visualizer` connect `Community 5` to `Community 4`?",
+      "why": "High betweenness centrality (0.011) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `code`, `userId`, `sessionToken` to the rest of the system?",
+      "why": "171 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 0` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06079664570230608 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.08673469387755102 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 2` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.0666049953746531 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Community 3` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.09390243902439024 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

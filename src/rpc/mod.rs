@@ -181,6 +181,23 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                                                     }
                                                 });
                                             }
+                                            Some("auth_failed") | Some("error") => {
+                                                let is_auth_err = m["type"] == "auth_failed" || m["message"].as_str().map(|msg| msg.contains("auth") || msg.contains("token") || msg.contains("code") || msg.contains("Invalid")).unwrap_or(false);
+                                                if is_auth_err {
+                                                    let mut s = state.write().await;
+                                                    if let Some(st) = s.settings.as_mut() {
+                                                        if st.session_token.is_some() || st.code.as_ref().map(|c| !c.is_empty()).unwrap_or(false) {
+                                                            info!("[Auth] Session Token rejected by server. Clearing stale credentials...");
+                                                            st.session_token = None;
+                                                            st.code = None;
+                                                            crate::config::save_settings(st);
+                                                            
+                                                            // 🚀 SYNC GUI: Notify the overlay/GUI that settings changed
+                                                            let _ = s.overlay_tx.send(json!({ "type": "settings_update" }).to_string());
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             _ => {}
                                         }
                                     }
@@ -195,6 +212,7 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                     }
                 }
                 { let mut s = state.write().await; s.ws_status = "Disconnected".to_string(); s.rpc_status = "Disconnected".to_string(); }
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
             Err(e) => {
                 info!("[WS] Connection failed: {}. Retrying in 5s...", e);
@@ -246,6 +264,7 @@ fn run_discord_worker(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCommand>) {
                             queued = Some((track, rpc_raw, true));
                         }
                     }
+                    last_reconnect_attempt = Instant::now() - Duration::from_secs(60);
                 }
             }
         }

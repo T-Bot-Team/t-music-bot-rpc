@@ -51,15 +51,15 @@ pub fn get_audio_devices() -> Vec<String> {
     names
 }
 
-pub fn process_thumbnail(url: Option<&str>) -> String {
+pub fn process_thumbnail(url: Option<&str>) -> Option<String> {
     match url {
-        Some(u) if !u.is_empty() && u != "null" => u.to_string(),
-        _ => "/assets/music.png".to_string(),
+        Some(u) if !u.is_empty() && u != "null" && u != "/assets/icon.png" && u != "/assets/music.png" => Some(u.to_string()),
+        _ => None,
     }
 }
 
 pub fn format_overlay_track(mut data: TrackUpdate) -> TrackUpdate {
-    data.thumbnail = Some(process_thumbnail(data.thumbnail.as_deref()));
+    data.thumbnail = process_thumbnail(data.thumbnail.as_deref());
     // 🚀 UNIFIED IDLE STRINGS: Ensure the UI always has consistent text for idle states
     if data.status == "idle" {
         if data.details.is_none() { data.details = Some("Resting...".to_string()); }
