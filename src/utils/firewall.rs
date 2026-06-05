@@ -1,4 +1,3 @@
-use crate::info;
 
 pub fn add_firewall_rule(port: u16) {
     #[cfg(target_os = "windows")]

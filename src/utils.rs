@@ -72,41 +72,42 @@ pub fn format_rpc_track(data: TrackUpdate) -> TrackUpdate {
     data
 }
 
+#[cfg(windows)]
 pub fn get_pairing_code() -> String {
     let title = "T_Music_Bot RPC Setup";
-    if cfg!(target_os = "windows") {
-        let ps_script = format!(
-            "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; [Windows.Forms.Application]::EnableVisualStyles(); \
-             $f=New-Object Windows.Forms.Form; $f.Text='{0}'; $f.Size=New-Object Drawing.Size(460,340); $f.StartPosition='CenterScreen'; $f.FormBorderStyle='FixedDialog'; $f.Topmost=$true; $f.Font=New-Object Drawing.Font('Segoe UI', 11); \
-             $l1=New-Object Windows.Forms.Label; $l1.Text='Instructions:'; $l1.Font=New-Object Drawing.Font('Segoe UI', 11, [Drawing.FontStyle]::Bold); $l1.Location=New-Object Drawing.Point(25,25); $l1.AutoSize=$true; \
-             $l2=New-Object Windows.Forms.Label; $l2.Text='1. Run [/rpc connect] in a Discord channel.' + [char]13 + [char]10 + '2. Paste the code given below.'; $l2.Size=New-Object Drawing.Size(400,60); $l2.Location=New-Object Drawing.Point(25,55); \
-             $l3=New-Object Windows.Forms.Label; $l3.Text='Enter Code:'; $l3.Font=New-Object Drawing.Font('Segoe UI', 11, [Drawing.FontStyle]::Bold); $l3.Location=New-Object Drawing.Point(25,120); $l3.AutoSize=$true; \
-             $t=New-Object Windows.Forms.TextBox; $t.Location=New-Object Drawing.Point(27,150); $t.Size=New-Object Drawing.Size(390,30); \
-             $btnOk=New-Object Windows.Forms.Button; $btnOk.Text='Connect'; $btnOk.Location=New-Object Drawing.Point(170,220); $btnOk.Size=New-Object Drawing.Size(120,45); $btnOk.DialogResult=1; \
-             $btnCan=New-Object Windows.Forms.Button; $btnCan.Text='Cancel'; $btnCan.Location=New-Object Drawing.Point(300,220); $btnCan.Size=New-Object Drawing.Size(120,45); $btnCan.DialogResult=2; \
-             $f.Controls.AddRange(@($l1,$l2,$l3,$t,$btnOk,$btnCan)); $f.Activate(); if($f.ShowDialog()-eq1){{$t.Text}}else{{'CANCELLED'}}",
-            title
-        );
-        let output = {
-            use std::os::windows::process::CommandExt;
-            Command::new("powershell")
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
-                .output()
-                .expect("Failed to execute PowerShell")
-        };
-        String::from_utf8_lossy(&output.stdout).trim().to_string()
-    } else {
-        let output = Command::new("zenity").args(&["--entry", "--title", title, "--text", "Paste Pairing Code:"]).output().unwrap_or_else(|_| {
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).ok();
-            let mut res = Command::new("echo").output().unwrap(); 
-            res.stdout = input.into_bytes();
-            res
-        });
-        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if result.is_empty() { "CANCELLED".to_string() } else { result }
-    }
+    let ps_script = format!(
+        "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; [Windows.Forms.Application]::EnableVisualStyles(); \
+         $f=New-Object Windows.Forms.Form; $f.Text='{0}'; $f.Size=New-Object Drawing.Size(460,340); $f.StartPosition='CenterScreen'; $f.FormBorderStyle='FixedDialog'; $f.Topmost=$true; $f.Font=New-Object Drawing.Font('Segoe UI', 11); \
+         $l1=New-Object Windows.Forms.Label; $l1.Text='Instructions:'; $l1.Font=New-Object Drawing.Font('Segoe UI', 11, [Drawing.FontStyle]::Bold); $l1.Location=New-Object Drawing.Point(25,25); $l1.AutoSize=$true; \
+         $l2=New-Object Windows.Forms.Label; $l2.Text='1. Run [/rpc connect] in a Discord channel.' + [char]13 + [char]10 + '2. Paste the code given below.'; $l2.Size=New-Object Drawing.Size(400,60); $l2.Location=New-Object Drawing.Point(25,55); \
+         $l3=New-Object Windows.Forms.Label; $l3.Text='Enter Code:'; $l3.Font=New-Object Drawing.Font('Segoe UI', 11, [Drawing.FontStyle]::Bold); $l3.Location=New-Object Drawing.Point(25,120); $l3.AutoSize=$true; \
+         $t=New-Object Windows.Forms.TextBox; $t.Location=New-Object Drawing.Point(27,150); $t.Size=New-Object Drawing.Size(390,30); \
+         $btnOk=New-Object Windows.Forms.Button; $btnOk.Text='Connect'; $btnOk.Location=New-Object Drawing.Point(170,220); $btnOk.Size=New-Object Drawing.Size(120,45); $btnOk.DialogResult=1; \
+         $btnCan=New-Object Windows.Forms.Button; $btnCan.Text='Cancel'; $btnCan.Location=New-Object Drawing.Point(300,220); $btnCan.Size=New-Object Drawing.Size(120,45); $btnCan.DialogResult=2; \
+         $f.Controls.AddRange(@($l1,$l2,$l3,$t,$btnOk,$btnCan)); $f.Activate(); if($f.ShowDialog()-eq1){{$t.Text}}else{{'CANCELLED'}}",
+        title
+    );
+    use std::os::windows::process::CommandExt;
+    let output = Command::new("powershell")
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+        .output()
+        .expect("Failed to execute PowerShell");
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+#[cfg(not(windows))]
+pub fn get_pairing_code() -> String {
+    let title = "T_Music_Bot RPC Setup";
+    let output = Command::new("zenity").args(&["--entry", "--title", title, "--text", "Paste Pairing Code:"]).output().unwrap_or_else(|_| {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).ok();
+        let mut res = Command::new("echo").output().unwrap(); 
+        res.stdout = input.into_bytes();
+        res
+    });
+    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if result.is_empty() { "CANCELLED".to_string() } else { result }
 }
 
 pub fn show_error_popup(msg: &str) {

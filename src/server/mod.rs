@@ -1,7 +1,7 @@
 pub mod handlers;
 pub mod templates;
 
-use crate::{info, AppState};
+use crate::AppState;
 use axum::{
     response::{IntoResponse},
     routing::get,

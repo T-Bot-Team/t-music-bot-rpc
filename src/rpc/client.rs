@@ -1,4 +1,4 @@
-use crate::{info, AppState, APP_VERSION};
+use crate::{AppState, APP_VERSION};
 use serde_json::json;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::protocol::Message;

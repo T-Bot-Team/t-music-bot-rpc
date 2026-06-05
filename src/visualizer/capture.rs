@@ -1,6 +1,5 @@
 use cpal::traits::{DeviceTrait, StreamTrait};
 use std::sync::mpsc::SyncSender;
-use crate::info;
 
 pub fn start_capture(
     device: &cpal::Device,

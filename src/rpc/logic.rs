@@ -1,4 +1,4 @@
-use crate::{AppState, TrackUpdate, RpcCommand, info, utils};
+use crate::{AppState, TrackUpdate, RpcCommand, utils};
 use crate::rpc::ipc::IpcClient;
 use serde_json::{json, Value};
 use std::time::Duration;

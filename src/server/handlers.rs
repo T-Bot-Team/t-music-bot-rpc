@@ -1,4 +1,4 @@
-use crate::{info, AppState, Settings};
+use crate::{AppState, Settings};
 use crate::server::ServerHandle;
 use crate::server::templates::get_html;
 use axum::{

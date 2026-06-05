@@ -3,7 +3,7 @@ pub mod processor;
 pub mod fft;
 pub mod smoothing;
 
-use crate::{AppState, info};
+use crate::AppState;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use tokio::task::JoinHandle;
 

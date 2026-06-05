@@ -2,7 +2,7 @@ pub mod ipc;
 pub mod client;
 pub mod logic;
 
-use crate::{AppState, TrackUpdate, RpcCommand, info, APP_VERSION};
+use crate::{AppState, TrackUpdate, RpcCommand, APP_VERSION};
 use serde_json::{json, Value};
 use std::sync::mpsc as std_mpsc;
 use std::time::{Duration, Instant};

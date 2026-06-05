@@ -1,10 +1,17 @@
 use serde_json::{json, Value};
-use crate::{info, AppState};
+use crate::AppState;
+
+#[cfg(windows)]
+type IpcSocket = std::fs::File;
+
+#[cfg(unix)]
+type IpcSocket = std::os::unix::net::UnixStream;
 
 pub struct IpcClient {
-    socket: Option<std::fs::File>,
+    socket: Option<IpcSocket>,
 }
 
+#[cfg(windows)]
 impl IpcClient {
     pub fn new(pipe: i32) -> Option<Self> {
         use std::fs::OpenOptions;
@@ -19,7 +26,37 @@ impl IpcClient {
         }
         None
     }
-    
+}
+
+#[cfg(unix)]
+impl IpcClient {
+    pub fn new(pipe: i32) -> Option<Self> {
+        use std::os::unix::net::UnixStream;
+        
+        let pipes: Vec<i32> = if pipe == -1 { (0..10).collect() } else { vec![pipe] };
+        
+        let temp_dirs = vec![
+            std::env::var("XDG_RUNTIME_DIR").ok().map(std::path::PathBuf::from),
+            std::env::var("TMPDIR").ok().map(std::path::PathBuf::from),
+            std::env::var("TMP").ok().map(std::path::PathBuf::from),
+            std::env::var("TEMP").ok().map(std::path::PathBuf::from),
+            Some(std::path::PathBuf::from("/tmp")),
+        ];
+
+        for i in pipes {
+            for dir_opt in &temp_dirs {
+                if let Some(dir) = dir_opt {
+                    let path = dir.join(format!("discord-ipc-{}", i));
+                    if let Ok(stream) = UnixStream::connect(&path) {
+                        return Some(Self { socket: Some(stream) });
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+impl IpcClient {
     pub fn send(&mut self, payload: Value, opcode: u32) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(socket) = &mut self.socket {
             use std::io::Write;
