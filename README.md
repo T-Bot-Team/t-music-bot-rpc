@@ -47,7 +47,7 @@ To configure isolated audio capturing (on Windows, macOS, or Linux), integrate t
 
 ## 🛠️ Configuration Settings
 
-Settings are stored in `settings.json` in your local directory and can be configured via the Web Dashboard:
+Settings are stored in `settings.json` inside your system's persistent application data directory (which resolves to `%APPDATA%/T_Music_Bot_RPC` on Windows, `~/Library/Application Support/T_Music_Bot_RPC` on macOS, and `~/.config/t-music-bot-rpc` on Linux). You can open this file directly via the **Open settings.json** button on the control center Web Dashboard, or configure all parameters using the UI sliders:
 
 | Section | Key | Default | Description |
 | :--- | :--- | :--- | :--- |

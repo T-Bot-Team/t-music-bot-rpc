@@ -6,10 +6,49 @@ use std::io::Write;
 use std::path::PathBuf;
 use cpal::traits::{DeviceTrait, HostTrait};
 
+pub fn get_app_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let mut path = PathBuf::from(appdata);
+            path.push("T_Music_Bot_RPC");
+            let _ = std::fs::create_dir_all(&path);
+            return path;
+        }
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let mut path = PathBuf::from(home);
+            path.push("Library");
+            path.push("Application Support");
+            path.push("T_Music_Bot_RPC");
+            let _ = std::fs::create_dir_all(&path);
+            return path;
+        }
+    }
+    
+    // Linux and fallback
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        let mut path = PathBuf::from(xdg);
+        path.push("t-music-bot-rpc");
+        let _ = std::fs::create_dir_all(&path);
+        return path;
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let mut path = PathBuf::from(home);
+        path.push(".config");
+        path.push("t-music-bot-rpc");
+        let _ = std::fs::create_dir_all(&path);
+        return path;
+    }
+    
+    PathBuf::from(".")
+}
+
 pub fn get_log_path() -> PathBuf {
-    std::env::current_exe()
-        .map(|p| p.parent().unwrap().join("latest.log"))
-        .unwrap_or_else(|_| PathBuf::from("latest.log"))
+    get_app_dir().join("latest.log")
 }
 
 use std::sync::Mutex;

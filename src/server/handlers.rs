@@ -42,9 +42,8 @@ pub async fn settings_gui_handler(
     let settings = s.settings.as_ref().unwrap();
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
-    let has_user_id = settings.user_id.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
 
-    if !has_user_id && (code.is_empty() || code.len() != 6) && !has_token {
+    if !has_token && (code.is_empty() || code.len() != 6) {
         return axum::response::Redirect::to("/setup").into_response();
     }
     
@@ -71,9 +70,8 @@ pub async fn setup_gui_handler(
     let settings = s.settings.as_ref().unwrap();
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
-    let has_user_id = settings.user_id.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
 
-    if has_user_id || (!code.is_empty() && code.len() == 6) || has_token {
+    if has_token || (!code.is_empty() && code.len() == 6) {
         return axum::response::Redirect::to("/settings").into_response();
     }
     Html(include_str!("../ui/setup.html")).into_response()
@@ -293,4 +291,13 @@ pub async fn get_status_handler(
         "rpcStatus": s.rpc_status,
         "isLinked": is_linked,
     }))
+}
+
+pub async fn open_settings_file_handler() -> impl IntoResponse {
+    let path = crate::utils::get_app_dir().join("settings.json");
+    if open::that(&path).is_ok() {
+        axum::response::Html("Success").into_response()
+    } else {
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to open file").into_response()
+    }
 }

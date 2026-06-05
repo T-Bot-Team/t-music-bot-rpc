@@ -89,7 +89,9 @@ async function saveSettings(e) {
         state.overlay.visualizer.enabled = el('sys_vizEnabled').checked;
         
         if (!state.rpc) state.rpc = { swapRpcLines: false };
-        state.rpc.swapRpcLines = el('rpc_swapLines').checked;
+        if (el('rpc_swapLines')) {
+            state.rpc.swapRpcLines = el('rpc_swapLines').checked;
+        }
 
         if (el('sys_audioDevice').value !== 'default') {
             state.overlay.visualizer.audioDevice = el('sys_audioDevice').value;

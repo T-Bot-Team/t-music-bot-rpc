@@ -10,4 +10,4 @@ MeasureBandsSmoothed.inc
 graphify-out/
 .agents/
 typescript/
-ui/
+/ui/

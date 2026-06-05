@@ -18,7 +18,7 @@ pub mod tray;
 
 pub use models::*;
 
-pub const APP_VERSION: &str = "1.1.0";
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};

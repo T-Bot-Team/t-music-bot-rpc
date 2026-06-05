@@ -36,6 +36,7 @@ pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Re
             "/api/settings",
             get(handlers::get_settings_handler).post(handlers::update_settings_handler),
         )
+        .route("/api/settings/open", axum::routing::post(handlers::open_settings_file_handler))
         .route("/api/defaults", get(handlers::get_defaults_handler))
         .route("/api/rpc/sync", get(handlers::rpc_sync_handler))
         .route("/api/devices", get(handlers::get_devices_handler))

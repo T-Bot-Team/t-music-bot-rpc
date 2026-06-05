@@ -1113,3 +1113,11 @@ document.addEventListener('click', (e) => {
 
 // Run initialization
 initCustomSelects();
+
+async function openSettingsFile() {
+    try {
+        await fetch('/api/settings/open', { method: 'POST' });
+    } catch (e) {
+        console.error("Failed to open settings file", e);
+    }
+}

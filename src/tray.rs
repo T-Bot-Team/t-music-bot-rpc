@@ -114,44 +114,39 @@ pub fn create_tray(state: AppState, rt: Runtime) {
 
     #[cfg(not(target_os = "windows"))]
     {
-        std::thread::spawn(move || {
-            loop {
-                if let Ok(event) = event_receiver.recv() {
-                    if event.id == quit_id {
-                        let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-                        loop_state_2.blocking_write().is_shutting_down = true;
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        std::process::exit(0);
+        while let Ok(event) = event_receiver.recv() {
+            if event.id == quit_id {
+                let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
+                loop_state_2.blocking_write().is_shutting_down = true;
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                std::process::exit(0);
+            }
+            if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
+            if event.id == settings_id {
+                let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
+                let _ = open::that(format!("http://localhost:{}/settings", port));
+            }
+            
+            // AUDIO DEVICE SELECTION
+            for (item, name) in &device_items {
+                if event.id == item.id() {
+                    for (other_it, _) in &device_items {
+                        if other_it.id() != item.id() { other_it.set_checked(false); }
                     }
-                    if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
-                    if event.id == settings_id {
-                        let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
-                        let _ = open::that(format!("http://localhost:{}/settings", port));
-                    }
-                    
-                    // AUDIO DEVICE SELECTION
-                    for (item, name) in &device_items {
-                        if event.id == item.id() {
-                            for (other_it, _) in &device_items {
-                                if other_it.id() != item.id() { other_it.set_checked(false); }
-                            }
-                            item.set_checked(true);
+                    item.set_checked(true);
 
-                            let mut s = loop_state_2.blocking_write();
-                            if let Some(st) = s.settings.as_mut() {
-                                st.overlay.visualizer.audio_device = name.clone();
-                                crate::config::save_settings(st);
-                                info!("[Tray] Audio device updated: {}", name);
-                                
-                                // Trigger visualizer restart!
-                                let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
-                            }
-                        }
+                    let mut s = loop_state_2.blocking_write();
+                    if let Some(st) = s.settings.as_mut() {
+                        st.overlay.visualizer.audio_device = name.clone();
+                        crate::config::save_settings(st);
+                        info!("[Tray] Audio device updated: {}", name);
+                        
+                        // Trigger visualizer restart!
+                        let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(16));
             }
-        });
+        }
     }
 }
 

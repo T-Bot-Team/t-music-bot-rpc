@@ -22,7 +22,7 @@
     <div class="container">
         <header>
             <div class="header-left">
-                <img src="/assets/icon.png" alt="Logo">
+                <img src="/assets/avatar.png" alt="Logo">
                 <div>
                     <h1>First-Time Setup</h1>
                     <div style="color: var(--text-dim); font-size: 0.95rem; margin-top: 4px;">Welcome to T_Music_Bot</div>
@@ -38,7 +38,7 @@
                     <div class="field">
                         <label>6-Digit Pairing Code</label>
                         <input type="text" id="sys_code" placeholder="Enter code from the bot" maxlength="6">
-                        <div class="desc" style="margin-top: 10px;">This connects this RPC bridge to your Discord account.</div>
+                        <div class="desc" style="margin-top: 10px;">Run the <b>/rpc connect</b> slash command in a Discord channel with T_Music_Bot to get your 6-digit pairing code.</div>
                     </div>
                     <input type="hidden" id="sys_userId">
                 </div>
@@ -76,12 +76,8 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Step 3: Discord Presence</div>
+                    <div class="card-header">Step 3: Shortcuts & Firewall</div>
                     <div class="toggle-grid">
-                        <label class="toggle-item">
-                            <input type="checkbox" id="rpc_swapLines">
-                            <span class="toggle-text">Swap Details & State (Artist on top)</span>
-                        </label>
                         <label class="toggle-item">
                             <input type="checkbox" id="sys_desktopShortcut" checked>
                             <span class="toggle-text">Create Desktop Shortcut</span>
@@ -95,7 +91,6 @@
                             <span class="toggle-text">Allow LAN Access (Firewall Rule)</span>
                         </label>
                     </div>
-                    <div class="desc" style="margin-top: 12px;">Customize how your status looks to others.</div>
                 </div>
             </div>
 
