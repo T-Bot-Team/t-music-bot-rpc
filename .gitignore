@@ -1,1 +1,13 @@
 /target
+GEMINI.md
+image.png
+settings.json
+latest.log
+tester.js
+variables.ini
+MeasureBands.inc
+MeasureBandsSmoothed.inc
+graphify-out/
+.agents/
+typescript/
+ui/
