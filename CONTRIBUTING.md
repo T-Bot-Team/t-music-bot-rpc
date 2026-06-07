@@ -27,7 +27,7 @@ To build and run this project, you need the **Rust toolchain** and build depende
    cargo run
    ```
 
-*For more details on codebase architecture, UI testing, and compiling binaries, refer to the [Compiling Guide](docs/compiling.md).*
+*For more details on codebase architecture, UI testing, and compiling binaries, refer to the [Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide).*
 
 ---
 

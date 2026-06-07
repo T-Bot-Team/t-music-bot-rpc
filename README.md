@@ -36,11 +36,11 @@ A high-accuracy frequency analyzer built directly into the client:
 
 To configure isolated audio capturing (on Windows, macOS, or Linux), integrate the visualizer into your setup, or build/contribute from source, refer to the documentation:
 
-* 🔌 **[Audio Isolation & Routing Guide](docs/voicemeeter_cable_guide.md)**: Walkthrough for VB-Cable, Voicemeeter, and PipeWire/CoreAudio to isolate music visualizer audio from system sounds, games, and voice calls.
-* 🖥️ **[OBS Studio Integration Tour](docs/obs_setup_guide.md)**: Step-by-step setup for browser sources, viewport scaling, transparency filters, and performance settings.
-* 🎛️ **[Dashboard Tour](docs/dashboard_tour.md)**: Explore the settings control panel, presets, and customized visual styling options.
-* ⚡ **[Performance Benchmarks](docs/performance_comparison.md)**: Detailed resource comparison showing CPU/RAM reductions of the native Rust rewrite vs. the legacy TypeScript version.
-* 🛠️ **[Compiling Guide](docs/compiling.md)**: Step-by-step instructions for compiling from source and project codebase walkthrough.
+* 🔌 **[Audio Isolation & Routing Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Audio-Isolation-&-Routing-Guide)**: Walkthrough for VB-Cable, Voicemeeter, and PipeWire/CoreAudio to isolate music visualizer audio from system sounds, games, and voice calls.
+* 🖥️ **[OBS Studio Integration Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/OBS-Studio-Integration-Tour)**: Step-by-step setup for browser sources, viewport scaling, transparency filters, and performance settings.
+* 🎛️ **[Dashboard Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Dashboard-Tour)**: Explore the settings control panel, presets, and customized visual styling options.
+* ⚡ **[Performance Benchmarks](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Performance-Benchmarks)**: Detailed resource comparison showing CPU/RAM reductions of the native Rust rewrite vs. the legacy TypeScript version.
+* 🛠️ **[Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide)**: Step-by-step instructions for compiling from source and project codebase walkthrough.
 * 🤝 **[Contributing Guidelines](CONTRIBUTING.md)**: Standard workflow rules, code quality guidelines, and PR procedures for contributors.
 
 ---
@@ -75,7 +75,7 @@ If you are an end-user, follow these quick steps:
 4. Input the code in the setup dialog. Once linked successfully, the client will run silently inside your **System Tray**.
 5. Double-click the tray icon to open the configuration dashboard (`http://localhost:3000/settings`).
 
-*Note for developers: If you prefer to compile from source or run developer builds, please refer directly to the [Compiling Guide](docs/compiling.md).*
+*Note for developers: If you prefer to compile from source or run developer builds, please refer directly to the [Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide).*
 
 ---
 
