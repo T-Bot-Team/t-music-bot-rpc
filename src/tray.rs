@@ -112,39 +112,152 @@ pub fn create_tray(state: AppState, rt: Runtime) {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
     {
-        while let Ok(event) = event_receiver.recv() {
-            if event.id == quit_id {
-                let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-                loop_state_2.blocking_write().is_shutting_down = true;
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                std::process::exit(0);
-            }
-            if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
-            if event.id == settings_id {
-                let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
-                let _ = open::that(format!("http://localhost:{}/settings", port));
-            }
-            
-            // AUDIO DEVICE SELECTION
-            for (item, name) in &device_items {
-                if event.id == item.id() {
-                    for (other_it, _) in &device_items {
-                        if other_it.id() != item.id() { other_it.set_checked(false); }
-                    }
-                    item.set_checked(true);
+        let event_receiver = event_receiver.clone();
+        let loop_state_2 = loop_state_2.clone();
+        let device_items = device_items.clone();
 
-                    let mut s = loop_state_2.blocking_write();
-                    if let Some(st) = s.settings.as_mut() {
-                        st.overlay.visualizer.audio_device = name.clone();
-                        crate::config::save_settings(st);
-                        info!("[Tray] Audio device updated: {}", name);
-                        
-                        // Trigger visualizer restart!
-                        let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
+        gtk::glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+            while let Ok(event) = event_receiver.try_recv() {
+                if event.id == quit_id {
+                    let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
+                    loop_state_2.blocking_write().is_shutting_down = true;
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    std::process::exit(0);
+                }
+                if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
+                if event.id == settings_id {
+                    let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
+                    let _ = open::that(format!("http://localhost:{}/settings", port));
+                }
+                
+                // AUDIO DEVICE SELECTION
+                for (item, name) in &device_items {
+                    if event.id == item.id() {
+                        for (other_it, _) in &device_items {
+                            if other_it.id() != item.id() { other_it.set_checked(false); }
+                        }
+                        item.set_checked(true);
+
+                        let mut s = loop_state_2.blocking_write();
+                        if let Some(st) = s.settings.as_mut() {
+                            st.overlay.visualizer.audio_device = name.clone();
+                            crate::config::save_settings(st);
+                            info!("[Tray] Audio device updated: {}", name);
+                            
+                            // Trigger visualizer restart!
+                            let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
+                        }
                     }
                 }
+            }
+            gtk::glib::ControlFlow::Continue
+        });
+
+        gtk::main();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSApplication;
+        use objc2_foundation::MainThreadMarker;
+
+        if let Some(mtm) = MainThreadMarker::new() {
+            let app = NSApplication::sharedApplication(mtm);
+
+            struct PollContext {
+                event_receiver: crossbeam_channel::Receiver<tray_icon::menu::MenuEvent>,
+                loop_state_2: crate::AppState,
+                device_items: Vec<(tray_icon::menu::CheckMenuItem, String)>,
+                quit_id: tray_icon::menu::MenuId,
+                logs_id: tray_icon::menu::MenuId,
+                settings_id: tray_icon::menu::MenuId,
+            }
+
+            unsafe fn get_main_queue() -> *mut std::ffi::c_void {
+                extern "C" {
+                    static _dispatch_main_q: std::ffi::c_void;
+                }
+                &_dispatch_main_q as *const std::ffi::c_void as *mut std::ffi::c_void
+            }
+
+            extern "C" fn poll_loop(ctx_ptr: *mut std::ffi::c_void) {
+                unsafe {
+                    let ctx = &mut *(ctx_ptr as *mut PollContext);
+
+                    while let Ok(event) = ctx.event_receiver.try_recv() {
+                        if event.id == ctx.quit_id {
+                            let _ = ctx.loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
+                            ctx.loop_state_2.blocking_write().is_shutting_down = true;
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            std::process::exit(0);
+                        }
+                        if event.id == ctx.logs_id { let _ = open::that(crate::utils::get_log_path()); }
+                        if event.id == ctx.settings_id {
+                            let port = ctx.loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
+                            let _ = open::that(format!("http://localhost:{}/settings", port));
+                        }
+                        
+                        // AUDIO DEVICE SELECTION
+                        for (item, name) in &ctx.device_items {
+                            if event.id == item.id() {
+                                for (other_it, _) in &ctx.device_items {
+                                    if other_it.id() != item.id() { other_it.set_checked(false); }
+                                }
+                                item.set_checked(true);
+
+                                let mut s = ctx.loop_state_2.blocking_write();
+                                if let Some(st) = s.settings.as_mut() {
+                                    st.overlay.visualizer.audio_device = name.clone();
+                                    crate::config::save_settings(st);
+                                    info!("[Tray] Audio device updated: {}", name);
+                                    
+                                    // Trigger visualizer restart!
+                                    let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
+                                }
+                            }
+                        }
+                    }
+
+                    extern "C" {
+                        fn dispatch_time(when: u64, delta: i64) -> u64;
+                        fn dispatch_after_f(
+                            when: u64,
+                            queue: *mut std::ffi::c_void,
+                            context: *mut std::ffi::c_void,
+                            work: extern "C" fn(*mut std::ffi::c_void),
+                        );
+                    }
+
+                    let delay_ns = 50 * 1_000_000; // 50ms
+                    let when = dispatch_time(0, delay_ns);
+                    let queue = get_main_queue();
+                    dispatch_after_f(when, queue, ctx_ptr, poll_loop);
+                }
+            }
+
+            let ctx = Box::new(PollContext {
+                event_receiver: event_receiver.clone(),
+                loop_state_2: loop_state_2.clone(),
+                device_items: device_items.clone(),
+                quit_id: quit_id.clone(),
+                logs_id: logs_id.clone(),
+                settings_id: settings_id.clone(),
+            });
+
+            unsafe {
+                extern "C" {
+                    fn dispatch_async_f(
+                        queue: *mut std::ffi::c_void,
+                        context: *mut std::ffi::c_void,
+                        work: extern "C" fn(*mut std::ffi::c_void),
+                    );
+                }
+                let queue = get_main_queue();
+                dispatch_async_f(queue, Box::into_raw(ctx) as *mut std::ffi::c_void, poll_loop);
+
+                app.run();
             }
         }
     }
@@ -166,25 +279,42 @@ fn build_menu(state: &AppState, rt: &Arc<Runtime>) -> (Menu, Vec<(CheckMenuItem,
     let settings = rt.block_on(async { state.read().await.settings.as_ref().unwrap().clone() });
     let current_device = settings.overlay.visualizer.audio_device;
 
-    // AUDIO DEVICE SUBMENU
+    // AUDIO DEVICE SELECTION
     let devices = crate::utils::get_audio_devices();
-    let devices_menu = SubmenuBuilder::new().text("Playback Device").enabled(true);
     let mut device_items = Vec::new();
     for d in devices {
         let is_selected = d == current_device || (current_device == "default" && d.to_lowercase().contains("default"));
         let item = CheckMenuItemBuilder::new().text(&d).enabled(true).checked(is_selected).build();
         device_items.push((item, d));
     }
-    let dm = devices_menu.build().unwrap();
-    for (item, _) in &device_items { let _ = dm.append(item); }
 
-    let _ = menu.append_items(&[
-        &ws_item, &rpc_item,
-        &PredefinedMenuItem::separator(),
-        &dm,
-        &PredefinedMenuItem::separator(),
-        &open_settings, &open_logs, &quit
-    ]);
+    let _ = menu.append(&ws_item);
+    let _ = menu.append(&rpc_item);
+    let _ = menu.append(&PredefinedMenuItem::separator());
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let devices_menu = SubmenuBuilder::new().text("Playback Device").enabled(true);
+        let dm = devices_menu.build().unwrap();
+        for (item, _) in &device_items {
+            let _ = dm.append(item);
+        }
+        let _ = menu.append(&dm);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let device_header = MenuItemBuilder::new().text("Playback Device:").enabled(false).build();
+        let _ = menu.append(&device_header);
+        for (item, _) in &device_items {
+            let _ = menu.append(item);
+        }
+    }
+
+    let _ = menu.append(&PredefinedMenuItem::separator());
+    let _ = menu.append(&open_settings);
+    let _ = menu.append(&open_logs);
+    let _ = menu.append(&quit);
 
     unsafe { GLOBAL_TRAY_HANDLE = Some(TrayHandle { ws_item, rpc_item }); }
     (menu, device_items, quit.id().clone(), open_logs.id().clone(), open_settings.id().clone())

@@ -22,8 +22,16 @@ pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
     let mut is_loopback = false;
 
     if device_name == "default" || device_name.is_empty() {
-        selected_device = host.default_output_device();
-        is_loopback = true;
+        #[cfg(target_os = "windows")]
+        {
+            selected_device = host.default_output_device();
+            is_loopback = true;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            selected_device = host.default_input_device();
+            is_loopback = false;
+        }
     } else {
         if let Ok(devices) = host.output_devices() {
             for d in devices {
@@ -54,8 +62,16 @@ pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
 
     let device = selected_device.or_else(|| {
         info!("[Visualizer] Device '{}' not found. Fallback to Default.", device_name);
-        is_loopback = true;
-        host.default_output_device()
+        #[cfg(target_os = "windows")]
+        {
+            is_loopback = true;
+            host.default_output_device()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            is_loopback = false;
+            host.default_input_device()
+        }
     });
 
     if let Some(device) = device {
@@ -63,9 +79,21 @@ pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
         info!("[Visualizer] Bound to: {}", actual_name);
 
         let supported_config = if is_loopback {
-            device.default_output_config().expect("Output config failed")
+            match device.default_output_config() {
+                Ok(cfg) => cfg,
+                Err(e) => {
+                    info!("[Visualizer] Failed to get default output config for device: {:?}", e);
+                    return None;
+                }
+            }
         } else {
-            device.default_input_config().expect("Input config failed")
+            match device.default_input_config() {
+                Ok(cfg) => cfg,
+                Err(e) => {
+                    info!("[Visualizer] Failed to get default input config for device: {:?}", e);
+                    return None;
+                }
+            }
         };
 
         let sample_format = supported_config.sample_format();

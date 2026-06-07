@@ -1,6 +1,6 @@
 [package]
 name = "t-music-bot-rpc"
-version = "2.0.1"
+version = "2.0.2"
 edition = "2021"
 
 [dependencies]
@@ -27,8 +27,9 @@ tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 uuid = { version = "1.0", features = ["v4"] }
 
 # UI & Tray
-tray-icon = "0.24"
+tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
 open = "5.0"
+crossbeam-channel = "0.5"
 
 # Logging
 chrono = "0.4"
@@ -42,10 +43,16 @@ minreq = { version = "2.11", features = ["https-native", "json-using-serde"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
+gtk = "0.18"
 
 # Windows Specific
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_Security"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
 
 [build-dependencies]
 winres = "0.1"

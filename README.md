@@ -69,7 +69,11 @@ Settings are stored in `settings.json` inside your system's persistent applicati
 ## 🚀 Getting Started
 
 If you are an end-user, follow these quick steps:
-1. Download the standalone executable for your operating system from the **Releases** page.
+1. Download the standalone executable for your operating system from the **Releases** page:
+   * **Windows (64-bit):** `T_Music_Bot_RPC.exe`
+   * **Linux (x86_64):** `T_Music_Bot-RPC`
+   * **macOS (Intel):** `T_Music_Bot-RPC_Intel`
+   * **macOS (Apple Silicon):** `T_Music_Bot-RPC_Apple_Silicon`
 2. Run the application.
 3. Use the `/rpc connect` slash command on Discord to obtain your pairing code.
 4. Input the code in the setup dialog. Once linked successfully, the client will run silently inside your **System Tray**.

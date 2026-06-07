@@ -202,5 +202,10 @@ fn main() {
         });
     }).expect("Error setting Ctrl-C handler");
 
+    #[cfg(target_os = "linux")]
+    {
+        gtk::init().unwrap();
+    }
+
     tray::create_tray(state, rt);
 }
