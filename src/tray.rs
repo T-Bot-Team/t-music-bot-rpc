@@ -292,24 +292,12 @@ fn build_menu(state: &AppState, rt: &Arc<Runtime>) -> (Menu, Vec<(CheckMenuItem,
     let _ = menu.append(&rpc_item);
     let _ = menu.append(&PredefinedMenuItem::separator());
 
-    #[cfg(not(target_os = "linux"))]
-    {
-        let devices_menu = SubmenuBuilder::new().text("Playback Device").enabled(true);
-        let dm = devices_menu.build().unwrap();
-        for (item, _) in &device_items {
-            let _ = dm.append(item);
-        }
-        let _ = menu.append(&dm);
+    let devices_menu = SubmenuBuilder::new().text("Playback Device").enabled(true);
+    let dm = devices_menu.build().unwrap();
+    for (item, _) in &device_items {
+        let _ = dm.append(item);
     }
-
-    #[cfg(target_os = "linux")]
-    {
-        let device_header = MenuItemBuilder::new().text("Playback Device:").enabled(false).build();
-        let _ = menu.append(&device_header);
-        for (item, _) in &device_items {
-            let _ = menu.append(item);
-        }
-    }
+    let _ = menu.append(&dm);
 
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&open_settings);
