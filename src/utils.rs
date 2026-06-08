@@ -81,12 +81,6 @@ pub fn get_audio_devices() -> Vec<String> {
     if let Ok(devices) = host.output_devices() {
         for d in devices {
             if let Ok(name) = d.name() {
-                #[cfg(target_os = "linux")]
-                {
-                    if name.contains(':') || name.contains('=') {
-                        continue;
-                    }
-                }
                 if seen.insert(name.clone()) {
                     names.push(name);
                 }
