@@ -41,7 +41,7 @@ To configure isolated audio capturing (on Windows, macOS, or Linux), integrate t
 * 🎛️ **[Dashboard Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Dashboard-Tour)**: Explore the settings control panel, presets, and customized visual styling options.
 * ⚡ **[Performance Benchmarks](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Performance-Benchmarks)**: Detailed resource comparison showing CPU/RAM reductions of the native Rust rewrite vs. the legacy TypeScript version.
 * 🛠️ **[Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide)**: Step-by-step instructions for compiling from source and project codebase walkthrough.
-* 🤝 **[Contributing Guidelines](CONTRIBUTING.md)**: Standard workflow rules, code quality guidelines, and PR procedures for contributors.
+* 🤝 **[Contributing Guidelines](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Contributing-Guidelines)**: Standard workflow rules, code quality guidelines, and PR procedures for contributors.
 
 ---
 
