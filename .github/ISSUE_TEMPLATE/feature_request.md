@@ -1,20 +1,20 @@
 ---
 name: Feature Request
-about: Suggest an idea or enhancement for this project
+about: Got an idea that would make this better?
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. E.g. "I'm frustrated when..."
+**What's the problem?**
+What are you trying to do that the app doesn't let you do yet? "I'm frustrated when..." is a perfectly good opening.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**What would you like to happen?**
+Describe the behavior you want. Rough sketch is fine — mockups welcome but not required.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**Any other ways it could be solved?**
+If you've thought of workarounds or alternative approaches, list them here.
 
-**Additional context**
-Add any other context, designs, mockups, or screenshots about the feature request here.
+**Extra context**
+Screenshots, links to how another app handles this, whatever helps us get what you mean.

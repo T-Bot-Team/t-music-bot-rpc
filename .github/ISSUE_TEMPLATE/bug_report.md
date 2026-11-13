@@ -1,31 +1,30 @@
 ---
 name: Bug Report
-about: Create a report to help us improve the client
+about: Something broken? Tell us what happened
 title: '[BUG] '
 labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**What happened**
+Describe the bug plainly: what you were doing, what went wrong, and what you expected instead.
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Run the app...
+**Steps to reproduce**
+1. Open the app...
 2. Click on...
-3. See error...
+3. The error appears...
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What should have happened?
 
 **Screenshots**
-If applicable, add screenshots to help explain your problem.
+If you can show it, a screenshot saves a lot of back-and-forth.
 
-**Environment (please complete the following information):**
+**Environment**
 - OS: [e.g. Windows 11, Ubuntu 22.04]
-- Client Version: [e.g. 1.1.0]
-- Audio Device (if visualizer issue): [e.g. Default, Virtual Cable]
+- Client version: [e.g. 2.0.4]
+- Audio device (if it's a visualizer issue): [e.g. Default, VB-Cable]
 
-**Additional Context**
-Add any other context about the problem here (e.g. logs from terminal, specific tracks that trigger the issue).
+**Logs / anything else**
+Paste whatever looks relevant from `latest.log` (it sits next to your `settings.json`). If only certain tracks or apps trigger the bug, mention those too.
