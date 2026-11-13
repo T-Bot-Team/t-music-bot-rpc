@@ -78,7 +78,7 @@ pub async fn setup_gui_handler(
 }
 
 pub async fn get_devices_handler() -> impl IntoResponse {
-    axum::Json(crate::utils::get_audio_devices())
+    axum::Json(crate::visualizer::backend::list_devices())
 }
 
 pub async fn get_settings_handler(

@@ -1,164 +1,110 @@
-pub mod capture;
+pub mod backend;
 pub mod processor;
 pub mod fft;
 pub mod smoothing;
 
-use crate::AppState;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use crate::{AppState, VisualizerConfig};
 use tokio::task::JoinHandle;
 
+/// Starts the visualizer pipeline: capture -> FFT processor -> WebSocket broadcast.
+///
+/// The returned task owns the capture. Aborting it (or it returning) tears
+/// everything down: dropping the capture releases the device, and closing the
+/// sample channel ends the processor thread.
 pub async fn start_visualizer(state: AppState) -> Option<JoinHandle<()>> {
-    let config = {
+    let config: VisualizerConfig = {
         let s = state.read().await;
-        s.settings.as_ref().unwrap().overlay.visualizer.clone()
+        s.settings.as_ref()?.overlay.visualizer.clone()
     };
 
-    if !config.enabled { return None; }
-
-    let host = cpal::default_host();
-    let device_name = &config.audio_device;
-    
-    let mut selected_device = None;
-    let mut is_loopback = false;
-
-    if device_name == "default" || device_name.is_empty() {
-        #[cfg(target_os = "windows")]
-        {
-            selected_device = host.default_output_device();
-            is_loopback = true;
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            selected_device = host.default_input_device();
-            is_loopback = false;
-        }
-    } else {
-        if let Ok(devices) = host.output_devices() {
-            for d in devices {
-                if let Ok(name) = d.name() {
-                    if name.contains(device_name) {
-                        selected_device = Some(d);
-                        is_loopback = true;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if selected_device.is_none() {
-            if let Ok(devices) = host.input_devices() {
-                for d in devices {
-                    if let Ok(name) = d.name() {
-                        if name.contains(device_name) {
-                            selected_device = Some(d);
-                            is_loopback = false;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+    if !config.enabled {
+        return None;
     }
 
-    let device = selected_device.or_else(|| {
-        info!("[Visualizer] Device '{}' not found. Fallback to Default.", device_name);
-        #[cfg(target_os = "windows")]
-        {
-            is_loopback = true;
-            host.default_output_device()
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            is_loopback = false;
-            host.default_input_device()
-        }
-    });
+    let viz_tx = state.read().await.viz_tx.clone();
+    let audio = state
+        .read()
+        .await
+        .settings
+        .as_ref()
+        .map(|s| s.audio.clone())
+        .unwrap_or_default();
+    let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(128);
 
-    if let Some(device) = device {
-        let actual_name = device.name().unwrap_or_else(|_| "Unknown".to_string());
-        info!("[Visualizer] Bound to: {}", actual_name);
+    // When the client manages the virtual bus, the visualizer records the
+    // bus monitor (kept at full scale) instead of the system default output,
+    // so turning the music down never flattens the bars.
+    let device_name = config.audio_device.clone();
+    #[cfg(target_os = "linux")]
+    let device_name = if audio.manage_bus && backend::is_default_request(&device_name) {
+        crate::audio_bus::monitor_device()
+    } else {
+        device_name
+    };
+    let manage_bus = audio.manage_bus;
+    let listen_volume = audio.listen_volume.min(150) as u8;
 
-        let supported_config = if is_loopback {
-            match device.default_output_config() {
-                Ok(cfg) => cfg,
-                Err(e) => {
-                    info!("[Visualizer] Failed to get default output config for device: {:?}", e);
-                    return None;
+    let proc_config = config.clone();
+    let proc_state = state.clone();
+
+    Some(tokio::spawn(async move {
+        let opened = tokio::task::spawn_blocking(move || {
+            #[cfg(target_os = "linux")]
+            if manage_bus {
+                if let Err(e) = crate::audio_bus::ensure(listen_volume) {
+                    info!("[AudioBus] Could not prepare the audio bus before capture: {}", e);
                 }
             }
-        } else {
-            match device.default_input_config() {
-                Ok(cfg) => cfg,
-                Err(e) => {
-                    info!("[Visualizer] Failed to get default input config for device: {:?}", e);
-                    return None;
-                }
+            #[cfg(not(target_os = "linux"))]
+            let _ = (manage_bus, listen_volume);
+            backend::open_capture(&device_name, audio_tx)
+        })
+        .await;
+
+        let (mut capture, sr, channels, bound_name, bound_id) = match opened {
+            Ok(Ok(o)) => (o.capture, o.sample_rate, o.channels, o.bound_name, o.bound_id),
+            Ok(Err(e)) => {
+                info!("[Visualizer] Capture failed: {}", e);
+                return;
+            }
+            Err(e) => {
+                info!("[Visualizer] Capture task failed: {}", e);
+                return;
             }
         };
+        info!(
+            "[Visualizer] Bound to: {} ({} Hz, {} ch)",
+            crate::visualizer::backend::format_label(&bound_name, &bound_id),
+            sr,
+            channels
+        );
 
-        let sample_format = supported_config.sample_format();
-        let stream_config: cpal::StreamConfig = supported_config.into();
-        let sr = stream_config.sample_rate.0 as f32;
-        let channels = stream_config.channels as usize;
-
-        let tx = { state.read().await.viz_tx.clone() };
-        let (audio_tx, audio_rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(128);
-        
-        let (stop_tx, mut stop_rx) = tokio::sync::mpsc::channel::<()>(1);
-        let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<()>(1);
-
-        let state_clone = state.clone();
-        std::thread::spawn(move || {
-            let stream = capture::start_capture(&device, &stream_config, sample_format, audio_tx);
-            let cfg_clone = config.clone();
-            let tx_proc = tx.clone();
-            
-            let s_proc = state_clone.clone();
-            let processor_handle = std::thread::spawn(move || {
-                processor::run_processor(cfg_clone, audio_rx, tx_proc, sr, channels, s_proc);
+        // Detached on purpose: the thread exits when audio_tx closes.
+        let _processor_handle = std::thread::Builder::new()
+            .name("viz-processor".into())
+            .spawn(move || {
+                processor::run_processor(proc_config, audio_rx, viz_tx, sr as f32, channels as usize, proc_state);
             });
 
-            let mut is_paused = false;
-            loop {
-                match stop_rx.try_recv() {
-                    Ok(_) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
-                }
+        // Smart suspend: pause capture when nobody is listening or nothing is playing.
+        let mut paused = false;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-                // 🚀 SMART CHECK: Wake up if music is playing OR if anyone is watching the overlay
-                let (listeners, is_playing) = {
-                    let s = state_clone.blocking_read();
-                    let is_p = s.last_track.as_ref().map(|t| t.status == "playing").unwrap_or(false);
-                    (s.viz_tx.receiver_count(), is_p)
-                };
+            let (listeners, is_playing) = {
+                let s = state.read().await;
+                let playing = s.last_track.as_ref().map(|t| t.status == "playing").unwrap_or(false);
+                (s.viz_tx.receiver_count(), playing)
+            };
 
-                let should_pause = listeners == 0 || !is_playing;
-
-                if should_pause && !is_paused {
-                    let _ = stream.pause();
-                    is_paused = true;
-                } else if !should_pause && is_paused {
-                    let _ = stream.play();
-                    is_paused = false;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(500));
+            let should_pause = listeners == 0 || !is_playing;
+            if should_pause && !paused {
+                capture.pause();
+                paused = true;
+            } else if !should_pause && paused {
+                capture.resume();
+                paused = false;
             }
-            
-            drop(stream);
-            let _ = processor_handle.join();
-            let _ = done_tx.blocking_send(());
-        });
-
-        Some(tokio::spawn(async move {
-            let _keep_alive = stop_tx;
-            tokio::select! {
-                _ = done_rx.recv() => {},
-                _ = tokio::signal::ctrl_c() => {},
-            }
-        }))
-    } else {
-        info!("[Visualizer] FATAL: No audio device available.");
-        None
-    }
+        }
+    }))
 }

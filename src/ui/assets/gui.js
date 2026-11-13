@@ -861,10 +861,43 @@ async function fetchDevices() {
         const devices = await res.json();
         const select = el('sys_audioDevice'); if (!select) return;
         select.innerHTML = '';
+
+        const addOption = (label, value, group, legacy) => {
+            const opt = document.createElement('option');
+            opt.value = value; opt.innerText = label;
+            if (value === g_audioDevice || (legacy && legacy === g_audioDevice)) opt.selected = true;
+            (group || select).appendChild(opt);
+        };
+
+        // Backward compatibility with plain-string device lists
+        const grouped = { monitor: [], 'output-loopback': [], input: [] };
         devices.forEach(d => {
-            const opt = document.createElement('option'); opt.value = d; opt.innerText = d;
-            if (d === g_audioDevice) opt.selected = true;
-            select.appendChild(opt);
+            if (typeof d === 'string') { addOption(d, d); return; }
+            (grouped[d.kind] ??= []).push(d);
+        });
+
+        const defaultLabel = navigator.platform.includes('Win')
+            ? 'System Default (Desktop Audio)'
+            : 'System Default';
+        addOption(defaultLabel, 'default');
+
+        const groups = [
+            ['monitor', 'Desktop Audio'],
+            ['output-loopback', 'Output Devices (Loopback)'],
+            ['input', 'Microphones & Inputs'],
+        ];
+        groups.forEach(([kind, label]) => {
+            const list = grouped[kind];
+            if (!list || !list.length) return;
+            const og = document.createElement('optgroup');
+            og.label = label;
+            select.appendChild(og);
+            // Persist the stable id, display "Name (ID)" — same as the tray menu.
+            list.forEach(d => addOption(d.label || d.name, d.id || d.name, og, d.name));
+        });
+    } catch (e) {}
+}
+
 // ---- Client-managed virtual audio bus ------------------------------------
 let audioBusStatus = null;
 let listenVolumeTimer = null;

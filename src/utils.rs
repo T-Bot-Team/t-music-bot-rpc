@@ -252,3 +252,66 @@ pub fn check_lock(port: u16) {
         std::process::exit(1);
     }
 }
+
+/// Turns a raw ALSA device string into something a human can read.
+///
+/// Only Linux has ALSA-style identifiers; everywhere else the name is passed
+/// through unchanged. The original id is kept separate by the visualizer so
+/// the stored setting stays stable — this is purely for display.
+pub fn format_alsa_device_name(name: &str) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        if name == "default" {
+            return "Default".to_string();
+        }
+        if name == "pipewire" {
+            return "PipeWire".to_string();
+        }
+        if name == "pulse" {
+            return "PulseAudio".to_string();
+        }
+        if name == "jack" {
+            return "JACK".to_string();
+        }
+
+        if name.contains(':') {
+            let parts: Vec<&str> = name.split(':').collect();
+            let dev_type = parts[0];
+            let rest = parts[1];
+
+            let mut card_name = "Unknown";
+            let mut dev_num = None;
+
+            for param in rest.split(',') {
+                if let Some(rest) = param.strip_prefix("CARD=") {
+                    card_name = rest;
+                } else if let Some(rest) = param.strip_prefix("DEV=") {
+                    dev_num = Some(rest);
+                }
+            }
+
+            let type_label = match dev_type {
+                "sysdefault" => "System Default",
+                "front" => "Front Speakers",
+                "surround40" => "Surround 4.0",
+                "surround51" => "Surround 5.1",
+                "surround71" => "Surround 7.1",
+                "hdmi" => "HDMI Output",
+                "iec958" => "S/PDIF Digital Output",
+                "dmix" => "Direct Mixer",
+                other => other,
+            };
+
+            let formatted_card = card_name.replace('_', " ");
+
+            let formatted = if let Some(dev) = dev_num {
+                format!("{} ({}, Device {})", type_label, formatted_card, dev)
+            } else {
+                format!("{} ({})", type_label, formatted_card)
+            };
+            return formatted;
+        }
+    }
+    name.to_string()
+}
+
