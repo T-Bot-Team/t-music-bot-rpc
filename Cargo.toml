@@ -44,6 +44,7 @@ minreq = { version = "2.11", features = ["https-native", "json-using-serde"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl = { version = "0.10" }
 gtk = "0.18"
+libpulse-binding = "2.28"
 
 # Windows Specific
 [target.'cfg(windows)'.dependencies]

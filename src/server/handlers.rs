@@ -161,7 +161,8 @@ pub async fn update_settings_handler(
     axum::extract::Json(payload): axum::extract::Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let mut s = state.write().await;
-    
+    let prev_audio = s.settings.as_ref().map(|st| st.audio.clone());
+
     // 1. Get current settings as JSON Value
     let mut current_settings_json = match &s.settings {
         Some(set) => serde_json::to_value(set).unwrap(),
@@ -210,6 +211,21 @@ pub async fn update_settings_handler(
 
                 info!("[Server] Settings updated (Partial). Triggering reload...");
                 let _ = handle.tx.send(json!({ "type": "settings_update" }).to_string());
+
+                // Audio routing is owned by us now: create/refresh or tear down
+                // the virtual bus whenever those specific settings change.
+                if prev_audio.as_ref() != Some(&new_settings.audio) {
+                    let audio = new_settings.audio.clone();
+                    tokio::task::spawn_blocking(move || {
+                        match crate::audio_bus::reconcile(audio.manage_bus, audio.listen_volume.min(150) as u8) {
+                            Ok(st) => info!(
+                                "[AudioBus] Reconcile -> active={} loopback={} listen={}%",
+                                st.active, st.loopback, st.listen_volume
+                            ),
+                            Err(e) => info!("[AudioBus] Reconcile failed: {}", e),
+                        }
+                    });
+                }
             }
             json!({ "status": "success" }).to_string().into_response()
         }
@@ -299,5 +315,64 @@ pub async fn open_settings_file_handler() -> impl IntoResponse {
         axum::response::Html("Success").into_response()
     } else {
         (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to open file").into_response()
+    }
+}
+
+/// Live state of the client-managed virtual audio bus.
+pub async fn get_audio_bus_handler() -> impl IntoResponse {
+    let status = tokio::task::spawn_blocking(crate::audio_bus::status).await.unwrap_or_default();
+    axum::Json(status)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioBusRequest {
+    #[serde(default)]
+    pub action: String,
+    pub volume: Option<u8>,
+}
+
+/// One-shot control for the audio bus: create it, drop it, change the listen
+/// level, or retire the old background service. Used by the live volume slider
+/// so dragging it takes effect immediately (Deploy still persists the value).
+pub async fn audio_bus_action_handler(
+    State((state, _)): State<(AppState, Arc<ServerHandle>)>,
+    axum::extract::Json(req): axum::extract::Json<AudioBusRequest>,
+) -> impl IntoResponse {
+    let saved = state
+        .read()
+        .await
+        .settings
+        .as_ref()
+        .map(|s| s.audio.listen_volume)
+        .unwrap_or(75);
+    let action = req.action.clone();
+    // Clamp before the u32->u8 cast: a hand-edited settings.json with e.g. 300
+    // would otherwise wrap to 44 and silently drop the volume.
+    let volume = req.volume.unwrap_or(saved.min(150) as u8).min(150);
+
+    let result = tokio::task::spawn_blocking(move || match action.as_str() {
+        "enable" | "volume" => crate::audio_bus::ensure(volume).map(|_| ()),
+        "disable" => crate::audio_bus::remove(),
+        "disableLegacy" => crate::audio_bus::disable_legacy_service(),
+        other => Err(format!("unknown audio bus action '{}'", other)),
+    })
+    .await;
+
+    match result {
+        Ok(Ok(())) => {
+            let status = tokio::task::spawn_blocking(crate::audio_bus::status).await.unwrap_or_default();
+            axum::Json(json!({ "ok": true, "status": status })).into_response()
+        }
+        Ok(Err(e)) => {
+            info!("[AudioBus] action failed: {}", e);
+            (axum::http::StatusCode::BAD_REQUEST, axum::Json(json!({ "ok": false, "error": e })))
+                .into_response()
+        }
+        Err(e) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(json!({ "ok": false, "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }

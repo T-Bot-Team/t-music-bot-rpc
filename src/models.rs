@@ -33,6 +33,7 @@ fn default_thumb_opacity() -> f32 { 0.5 }
 fn default_ipc_pipe() -> i32 { -1 }
 fn default_text_anim_mode() -> String { "dynamic".to_string() }
 fn default_text_anim_duration() -> u32 { 10 }
+fn default_listen_volume() -> u32 { 75 }
 
 fn default_text_style() -> GradientConfig {
     GradientConfig {
@@ -295,7 +296,33 @@ pub struct Settings {
     #[serde(default)]
     pub rpc: RpcConfig,
     #[serde(default)]
+    pub audio: AudioConfig,
+    #[serde(default)]
     pub allow_firewall: bool,
+}
+
+/// Client-managed virtual audio routing (Linux/PipeWire).
+///
+/// When enabled the app creates a dedicated "T_Music_Bot_RPC" sink for the
+/// player to output into, keeps it at 100% so the visualizer always sees full
+/// output, and routes it to your speakers through a loopback whose volume —
+/// `listen_volume` — is the only thing you change to make it quieter.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioConfig {
+    #[serde(default = "default_false")]
+    pub manage_bus: bool,
+    #[serde(default = "default_listen_volume")]
+    pub listen_volume: u32,
+}
+
+impl Default for AudioConfig {
+    fn default() -> Self {
+        Self {
+            manage_bus: false,
+            listen_volume: default_listen_volume(),
+        }
+    }
 }
 
 impl Default for Settings {
@@ -307,6 +334,7 @@ impl Default for Settings {
             saved_codes: std::collections::HashMap::new(),
             overlay: OverlayConfig::default(),
             rpc: RpcConfig::default(),
+            audio: AudioConfig::default(),
             allow_firewall: false,
         }
     }

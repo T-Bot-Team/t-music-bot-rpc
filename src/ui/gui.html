@@ -230,6 +230,29 @@
                         <div class="header-left-title"><span class="title-text">Visualizer Configuration</span></div>
                         <button type="button" class="btn-reset" onclick="resetSection('visualizer')">Reset</button>
                     </div>
+                    <div id="audio_bus_box" style="display:none; margin-bottom: 22px; padding: 18px 20px; border-radius: 16px; border: 1px solid var(--border); background: rgba(56, 189, 248, 0.04);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:16px;">
+                            <div style="flex:1;">
+                                <div style="font-weight:700; font-size:1rem;">Music Volume (What You Hear)</div>
+                                <div style="color:var(--text-dim); font-size:0.85rem; margin-top:3px; line-height:1.6;">Routes the player into a dedicated audio bus so the visualizer always gets <strong>full output</strong> — then lets you turn the music down for yourself without flattening the bars.</div>
+                            </div>
+                            <label class="switch" title="Create the virtual audio bus automatically">
+                                <input type="checkbox" id="audio_manageBus" onchange="onManageBusToggle()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div id="audio_bus_controls" style="display:none;">
+                            <div class="field">
+                                <label>What you hear <span class="val-display" id="val_listenVolume">75</span>%</label>
+                                <input type="range" min="0" max="100" step="1" id="audio_listenVolume" oninput="onListenVolumeInput()">
+                            </div>
+                            <div id="audio_bus_status" style="color:var(--text-dim); font-size:0.85rem; margin-top:10px;"></div>
+                            <div id="audio_legacy_warn" style="display:none; margin-top:12px; padding:10px 12px; border-radius:10px; background:rgba(250,204,21,0.08); border:1px solid rgba(250,204,21,0.4); color:#fde68a; font-size:0.85rem; line-height:1.6;">
+                                The old <code>tmusic-audio-sink.service</code> background service is also managing this bus and can conflict.
+                                <button type="button" class="btn-reset" onclick="disableLegacyService()" style="margin-left:6px;">Disable it</button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="desc" style="margin-bottom: 20px;"><strong>Tip:</strong> You can click the ↺ button next to any slider or color palette to reset that specific setting to its default value.</div>
                     <div class="grid" style="gap: 40px; margin-bottom: 0;">
                         <div>
@@ -321,6 +344,6 @@
     <script>
         window.__SETTINGS__ = null; // 🚀 HYDRATED BY SERVER
     </script>
-    <script src="/ui/assets/gui.js?v=6"></script>
+    <script src="/ui/assets/gui.js?v=8"></script>
 </body>
 </html>

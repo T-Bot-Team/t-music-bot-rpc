@@ -40,6 +40,10 @@ pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Re
         .route("/api/defaults", get(handlers::get_defaults_handler))
         .route("/api/rpc/sync", get(handlers::rpc_sync_handler))
         .route("/api/devices", get(handlers::get_devices_handler))
+        .route(
+            "/api/audio/bus",
+            get(handlers::get_audio_bus_handler).post(handlers::audio_bus_action_handler),
+        )
         .route("/api/status", get(handlers::get_status_handler))
         .route("/api/discord_clients", get(handlers::get_discord_clients_handler))
         .route("/assets/:path", get(asset_handler))

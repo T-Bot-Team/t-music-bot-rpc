@@ -10,6 +10,7 @@ macro_rules! info {
 
 pub mod models;
 pub mod config;
+pub mod audio_bus;
 pub mod utils;
 pub mod server;
 pub mod rpc;
@@ -140,9 +141,31 @@ fn main() {
     let s2 = state.clone();
     rt.spawn(async move { rpc::start_rpc_handler(s2, rpc_cmd_rx).await; });
 
+    // Client-managed virtual audio bus: make sure it exists on startup so the
+    // routing works even before/without the visualizer.
+    {
+        let audio = settings.audio.clone();
+        rt.spawn(async move {
+            let _ = tokio::task::spawn_blocking(move || {
+                if audio.manage_bus {
+                    match crate::audio_bus::reconcile(true, audio.listen_volume.min(150) as u8) {
+                        Ok(st) => info!(
+                            "[AudioBus] Managed bus ready (active={}, loopback={}, listen={}%).",
+                            st.active, st.loopback, st.listen_volume
+                        ),
+                        Err(e) => info!("[AudioBus] Could not set up managed bus: {}", e),
+                    }
+                } else if crate::audio_bus::status().active {
+                    info!("[AudioBus] Managing is off, but a bus already exists (leftover or legacy service).");
+                }
+            })
+            .await;
+        });
+    }
+
     // 🚀 REACTIVE VISUALIZER HANDLER
     let s3 = state.clone();
-    rt.spawn(async move { 
+    rt.spawn(async move {
         loop {
             let config = {
                 let s = s3.read().await;

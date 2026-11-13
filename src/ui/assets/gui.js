@@ -552,6 +552,10 @@ function buildUIState() {
         savedCodes: savedCodes,
         allowFirewall: getC('sys_allowFirewall'),
         rpc: { swapRpcLines: getC('rpc_swapLines'), ipcPipe: getN('rpc_ipcPipe', -1) },
+        audio: {
+            manageBus: getC('audio_manageBus'),
+            listenVolume: getN('audio_listenVolume', 75)
+        },
         overlay: {
             enabled: getC('sys_overlayEnabled'), port: newPort, layout: getV('overlay_layout'),
             showBackground: style === "blur", showThumbnailBackground: style === "cover",
@@ -667,6 +671,12 @@ async function loadSettings(settingsToLoad) {
         setS('viz_mode', v.mode); setS('viz_type', v.visualizerType); setS('viz_fps', v.fps); setS('viz_samples', v.samples); setS('viz_bars', v.bars);
         setS('viz_smoothing', v.smoothing); setS('viz_sensitivity', v.sensitivity); setS('viz_multiplier', v.multiplier);
         setS('viz_barWidth', v.barWidth); setS('viz_barGap', v.barGap); setC('viz_glow', v.glow); setC('viz_rounded', v.rounded); setC('viz_debugFps', v.debugFps);
+
+        const a = state.audio || {};
+        setC('audio_manageBus', a.manageBus);
+        setS('audio_listenVolume', a.listenVolume ?? 75);
+        if (el('val_listenVolume')) el('val_listenVolume').innerText = a.listenVolume ?? 75;
+        applyAudioBusUI(); refreshAudioBus();
 
         createPicker('txt_top', stripAlpha(o.textStyle?.top)); createPicker('txt_bot', stripAlpha(o.textStyle?.bottom)); setC('txt_static', o.textStyle?.isStatic);
         
@@ -855,8 +865,95 @@ async function fetchDevices() {
             const opt = document.createElement('option'); opt.value = d; opt.innerText = d;
             if (d === g_audioDevice) opt.selected = true;
             select.appendChild(opt);
+// ---- Client-managed virtual audio bus ------------------------------------
+let audioBusStatus = null;
+let listenVolumeTimer = null;
+
+function onListenVolumeInput() {
+    const s = el('audio_listenVolume'), d = el('val_listenVolume');
+    if (s && d) d.innerText = s.value;
+    checkDirtyState();
+    clearTimeout(listenVolumeTimer);
+    listenVolumeTimer = setTimeout(applyListenVolumeNow, 300);
+}
+
+function applyListenVolumeNow() {
+    const s = el('audio_listenVolume'); if (!s) return;
+    audioBusPost({ action: 'volume', volume: parseInt(s.value) });
+}
+
+function onManageBusToggle() {
+    applyAudioBusUI();
+    const s = el('audio_listenVolume');
+    const volume = s ? parseInt(s.value) : 75;
+    audioBusPost({ action: el('audio_manageBus').checked ? 'enable' : 'disable', volume });
+    if (el('audio_manageBus').checked) refreshAudioBus();
+    checkDirtyState();
+}
+
+async function audioBusPost(payload) {
+    try {
+        const res = await fetch('/api/audio/bus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
+        const data = await res.json();
+        if (data.status) { audioBusStatus = data.status; renderAudioBus(); }
     } catch (e) {}
+}
+
+async function refreshAudioBus() {
+    try {
+        const res = await fetch('/api/audio/bus', { cache: 'no-store' });
+        audioBusStatus = await res.json();
+        renderAudioBus();
+    } catch (e) { audioBusStatus = null; }
+}
+
+function applyAudioBusUI() {
+    const box = el('audio_bus_box'); if (!box) return;
+    const supported = audioBusStatus ? audioBusStatus.supported : (audioBusStatus === null);
+    if (supported === false) { box.style.display = 'none'; return; }
+    const manage = el('audio_manageBus') ? el('audio_manageBus').checked : false;
+    box.style.display = 'block';
+    const controls = el('audio_bus_controls');
+    if (controls) controls.style.display = manage ? 'block' : 'none';
+    const slider = el('audio_listenVolume');
+    if (slider) { slider.style.opacity = manage ? '1' : '0.5'; slider.disabled = !manage; }
+}
+
+function renderAudioBus() {
+    applyAudioBusUI();
+    const st = audioBusStatus; if (!st) return;
+    const stEl = el('audio_bus_status'); if (!stEl) return;
+    const manage = el('audio_manageBus') ? el('audio_manageBus').checked : false;
+
+    if (st.active && manage) {
+        let msg = 'Bus is live — player outputs go in here. Capture picks up its monitor automatically.';
+        if (st.loopback) msg += ' · Loopback to your speakers is running.';
+        if (!isNaN(+st.listenVolume)) {
+            msg += ` · You hear it at ${st.listenVolume}%.`;
+            const slider = el('audio_listenVolume');
+            if (slider) { slider.value = st.listenVolume; if (el('val_listenVolume')) el('val_listenVolume').innerText = st.listenVolume; }
+        }
+        stEl.innerText = msg;
+        stEl.style.color = 'var(--success)';
+    } else if (st.active) {
+        stEl.innerText = 'The audio bus exists but automatic management is off.';
+        stEl.style.color = 'var(--text-dim)';
+    } else {
+        stEl.innerText = st.detail ? `Not active (${st.detail})` : 'Not active yet — toggle the switch on and Deploy.';
+        stEl.style.color = 'var(--text-dim)';
+    }
+    const legacy = el('audio_legacy_warn');
+    if (legacy) legacy.style.display = (manage && st.legacyService) ? 'block' : 'none';
+}
+
+async function disableLegacyService() {
+    if (!confirm("Disable the old tmusic-audio-sink.service background service? This app will keep managing the audio bus instead.")) return;
+    await audioBusPost({ action: 'disableLegacy' });
+    refreshAudioBus();
 }
 
 async function checkStatus() {
@@ -956,6 +1053,7 @@ function checkDirtyState() {
         'sys_code': 'code', 'sys_port': 'overlay.port',
         'rpc_swapLines': 'rpc.swapRpcLines', 'sys_allowFirewall': 'allowFirewall',
         'sys_overlayEnabled': 'overlay.enabled', 'sys_vizEnabled': 'overlay.visualizer.enabled',
+        'audio_manageBus': 'audio.manageBus', 'audio_listenVolume': 'audio.listenVolume',
         'viz_debugFps': 'overlay.visualizer.debugFps', 'overlay_layout': 'overlay.layout',
         'overlay_backgroundOpacity': 'overlay.backgroundOpacity', 'overlay_centerText': 'overlay.centerText',
         'overlay_globalSync': 'overlay.globalSync', 'overlay_textAnim': 'overlay.enableTextAnimation',
