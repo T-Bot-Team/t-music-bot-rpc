@@ -189,6 +189,20 @@ pub fn create_start_menu_shortcut() {
     }
 }
 
+/// `true` when a published release version is strictly newer than ours.
+///
+/// Components are compared numerically (punctuation and non-numeric
+/// pre-release parts are ignored). A plain `!=` comparison made every
+/// local/dev build re-download the older published binary on startup.
+pub(crate) fn is_newer_release(latest: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u64> {
+        v.split(['.', '-', '_'])
+            .filter_map(|p| p.trim().parse::<u64>().ok())
+            .collect()
+    };
+    parse(latest) > parse(current)
+}
+
 pub fn check_for_updates() {
     std::thread::spawn(|| {
         let url = "https://api.github.com/repos/T-Bot-Team/t-music-bot-rpc/releases/latest";
@@ -197,7 +211,7 @@ pub fn check_for_updates() {
                 let latest_ver = json["tag_name"].as_str().unwrap_or("").trim_start_matches('v');
                 let current_ver = env!("CARGO_PKG_VERSION");
 
-                if !latest_ver.is_empty() && latest_ver != current_ver {
+                if !latest_ver.is_empty() && is_newer_release(latest_ver, current_ver) {
                     log_message(&format!("[Updater] Update found: v{} (Current: v{}).", latest_ver, current_ver));
                     
                     let platform_name = if cfg!(windows) { "T_Music_Bot_RPC.exe" } else { "T_Music_Bot-RPC" };
@@ -295,3 +309,46 @@ pub fn format_alsa_device_name(name: &str) -> String {
     name.to_string()
 }
 
+#[cfg(test)]
+mod device_name_tests {
+    use super::format_alsa_device_name;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn known_aliases_stay_short() {
+        assert_eq!(format_alsa_device_name("default"), "Default");
+        assert_eq!(format_alsa_device_name("pulse"), "PulseAudio");
+        assert_eq!(format_alsa_device_name("pipewire"), "PipeWire");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn alsa_pcm_strings_become_readable() {
+        let f = format_alsa_device_name(
+            "front:CARD=Generic,DEV=0",
+        );
+        assert_eq!(f, "Front Speakers (Generic, Device 0)");
+        let hdmi = format_alsa_device_name("hdmi:CARD=HDMI,DEV=0");
+        assert_eq!(hdmi, "HDMI Output (HDMI, Device 0)");
+    }
+
+    #[test]
+    fn passthrough_for_plain_names() {
+        assert_eq!(format_alsa_device_name("USB Microphone"), "USB Microphone");
+    }
+
+    #[test]
+    fn updater_never_downgrades() {
+        use super::is_newer_release;
+        // Published 2.0.3 vs local 2.0.4: not an update.
+        assert!(!is_newer_release("2.0.3", "2.0.4"));
+        assert!(!is_newer_release("2.0.4", "2.0.4"));
+        // Genuinely newer releases are picked up.
+        assert!(is_newer_release("2.0.5", "2.0.4"));
+        assert!(is_newer_release("2.1.0", "2.0.9"));
+        assert!(is_newer_release("10.0.0", "9.9.9"));
+        // Malformed / pre-release-ish inputs don't trigger a downgrade.
+        assert!(!is_newer_release("2.0", "2.0.4"));
+        assert!(!is_newer_release("nightly", "2.0.4"));
+    }
+}
