@@ -31,6 +31,9 @@ tray-icon = { version = "0.24", default-features = false, features = ["gtk"] }
 open = "5.0"
 crossbeam-channel = "0.5"
 
+# Main-thread event loop: runs the system tray on every OS
+winit = "0.30"
+
 # Logging
 chrono = "0.4"
 

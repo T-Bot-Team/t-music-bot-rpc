@@ -4,7 +4,6 @@ use std::process::Command;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use cpal::traits::{DeviceTrait, HostTrait};
 
 pub fn get_app_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
@@ -69,25 +68,6 @@ pub fn log_message(msg: &str) {
         let _ = file.write_all(log_line.as_bytes());
         let _ = file.flush();
     }
-}
-
-use std::collections::HashSet;
-
-pub fn get_audio_devices() -> Vec<String> {
-    let host = cpal::default_host();
-    let mut names = Vec::new();
-    let mut seen = HashSet::new();
-    
-    if let Ok(devices) = host.output_devices() {
-        for d in devices {
-            if let Ok(name) = d.name() {
-                if seen.insert(name.clone()) {
-                    names.push(name);
-                }
-            }
-        }
-    }
-    names
 }
 
 pub fn process_thumbnail(url: Option<&str>) -> Option<String> {

@@ -1,376 +1,315 @@
-use std::sync::{Arc};
-use std::time::{Duration};
-use tray_icon::{
-    menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder, MenuEvent, CheckMenuItemBuilder, CheckMenuItem},
-    TrayIconBuilder,
+use std::time::{Duration, Instant};
+use tray_icon::menu::{
+    CheckMenuItem, CheckMenuItemBuilder, Menu, MenuEvent, MenuItem, MenuItemBuilder,
+    PredefinedMenuItem, SubmenuBuilder,
 };
-use crate::AppState;
-use tokio::runtime::Runtime;
+use tray_icon::{TrayIcon, TrayIconBuilder};
 
-pub struct TrayHandle {
-    pub ws_item: MenuItem,
-    pub rpc_item: MenuItem,
+use crate::AppState;
+
+/// Everything `build_menu` produced, kept as handles into the live menu.
+struct MenuHandles {
+    menu: Menu,
+    ws_item: MenuItem,
+    rpc_item: MenuItem,
+    /// (checked item, stable device id) for every selectable audio device.
+    device_items: Vec<(CheckMenuItem, String)>,
+    quit_id: tray_icon::menu::MenuId,
+    logs_id: tray_icon::menu::MenuId,
+    settings_id: tray_icon::menu::MenuId,
 }
 
-static mut GLOBAL_TRAY_HANDLE: Option<TrayHandle> = None;
+/// Tray icon + menus.
+///
+/// The tray never owns the process main loop: the caller (see `ui::run`) must
+/// call [`Tray::pump`] regularly from the *main* thread. That keeps every
+/// AppKit/GTK/Win32 menu mutation on the thread that owns those toolkits —
+/// touching the tray from a background thread is what crashed macOS with
+/// `Assertion failed: (CGAtomicGet(&is_initialized)), CGSConnectionByID`.
+pub struct Tray {
+    _icon: TrayIcon,
+    events: crossbeam_channel::Receiver<MenuEvent>,
+    handles: MenuHandles,
+    last_ws: String,
+    last_rpc: String,
+    last_status_poll: Instant,
+}
 
-pub fn create_tray(state: AppState, rt: Runtime) {
-    let rt_arc = Arc::new(rt);
-    let (menu, device_items, quit_id, logs_id, settings_id) = build_menu(&state, &rt_arc);
+/// Initializes AppKit before any `NSStatusItem` is created.
+///
+/// Creating the status item before `NSApplication::sharedApplication()` leaves
+/// the Core Graphics session connection uninitialized, which aborts the process
+/// on macOS 14/15 (`CGSConnectionByID`, line 422).
+///
+/// `own_launch` is only true when we build the tray *without* winit: there
+/// `-[NSApplication run]` never runs, so we have to finish launching ourselves.
+/// Under winit the run loop already launched the app before `Resumed` fires,
+/// and calling `finishLaunching` again would re-post the launch notification
+/// into winit's delegate.
+#[cfg(target_os = "macos")]
+fn ensure_appkit(own_launch: bool) {
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    use objc2_foundation::MainThreadMarker;
 
-    let icon_bytes = include_bytes!("../assets/icon.ico");
-    #[cfg(windows)]
-    let icon = tray_icon::Icon::from_resource(101, None)
-        .unwrap_or_else(|_| {
-            let img = image::load_from_memory(icon_bytes).unwrap().to_rgba8();
-            let (width, height) = img.dimensions();
-            tray_icon::Icon::from_rgba(img.into_raw(), width, height).unwrap()
-        });
-    #[cfg(not(windows))]
-    let icon = {
-        let img = image::load_from_memory(icon_bytes).unwrap().to_rgba8();
-        let (width, height) = img.dimensions();
-        tray_icon::Icon::from_rgba(img.into_raw(), width, height).unwrap()
-    };
-
-    let _tray = TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_tooltip("T_Music_Bot RPC")
-        .with_icon(icon)
-        .build()
-        .unwrap();
-
-    // STATUS UPDATE THREAD
-    let loop_state = state.clone();
-    let loop_rt = rt_arc.clone();
-    std::thread::spawn(move || {
-        let mut last_ws = String::new();
-        let mut last_rpc = String::new();
-        loop {
-            let (ws, rpc) = loop_rt.block_on(async {
-                let s = loop_state.read().await;
-                (s.ws_status.clone(), s.rpc_status.clone())
-            });
-
-            if ws != last_ws || rpc != last_rpc {
-                update_tray_status_direct(ws.clone(), rpc.clone());
-                last_ws = ws;
-                last_rpc = rpc;
-            }
-
-            std::thread::sleep(Duration::from_millis(2000));
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        // Tray-only process: no Dock icon, no app menu takeover.
+        let _ = app.setActivationPolicy(NSApplicationActivationPolicyAccessory);
+        if own_launch {
+            app.finishLaunching();
         }
-    });
+    }
+}
 
-    // EVENT HANDLING LOOP (Windows Message Loop)
-    let event_receiver = MenuEvent::receiver();
-    let loop_state_2 = state.clone();
+#[cfg(not(target_os = "macos"))]
+fn ensure_appkit(_own_launch: bool) {}
 
-    #[cfg(target_os = "windows")]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{GetMessageW, DispatchMessageW, TranslateMessage, MSG};
-        let mut msg: MSG = unsafe { std::mem::zeroed() };
-        unsafe {
-            while GetMessageW(&mut msg, 0, 0, 0) > 0 {
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-                
-                if let Ok(event) = event_receiver.try_recv() {
-                    if event.id == quit_id {
-                        let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-                        loop_state_2.blocking_write().is_shutting_down = true;
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        std::process::exit(0);
-                    }
-                    if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
-                    if event.id == settings_id {
-                        let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
-                        let _ = open::that(format!("http://localhost:{}/settings", port));
-                    }
-                    
-                    // 🚀 AUDIO DEVICE SELECTION
-                    for (item, name) in &device_items {
-                        if event.id == item.id() {
-                            for (other_it, _) in &device_items {
-                                if other_it.id() != item.id() { other_it.set_checked(false); }
-                            }
-                            item.set_checked(true);
+/// 1x1 transparent fallback icon when the bundled one cannot be decoded.
+fn empty_icon() -> tray_icon::Icon {
+    tray_icon::Icon::from_rgba(vec![0, 0, 0, 0], 1, 1).expect("1x1 fallback icon")
+}
 
-                            let mut s = loop_state_2.blocking_write();
-                            if let Some(st) = s.settings.as_mut() {
-                                st.overlay.visualizer.audio_device = name.clone();
-                                crate::config::save_settings(st);
-                                info!("[Tray] Audio device updated: {}", name);
-                                
-                                // 🚨 CRITICAL: Trigger visualizer restart!
-                                let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
-                            }
-                        }
-                    }
-                }
-            }
+fn load_icon() -> tray_icon::Icon {
+    #[cfg(windows)]
+    if let Ok(icon) = tray_icon::Icon::from_resource(101, None) {
+        return icon;
+    }
+
+    image::load_from_memory(include_bytes!("../assets/icon.ico"))
+        .ok()
+        .and_then(|img| {
+            let rgba = img.to_rgba8();
+            let (width, height) = (rgba.width(), rgba.height());
+            tray_icon::Icon::from_rgba(rgba.into_raw(), width, height).ok()
+        })
+        .unwrap_or_else(empty_icon)
+}
+
+impl Tray {
+    /// Builds the tray icon and menus without winit driving NSApplication
+    /// (fallback pump). Must run on the main thread.
+    pub fn create(state: &AppState) -> Result<Tray, String> {
+        Self::create_inner(state, true)
+    }
+
+    /// Builds the tray from inside winit's `Resumed` callback: NSApplication
+    /// is already running, so we must not finish-launch it again.
+    pub fn create_in_run_loop(state: &AppState) -> Result<Tray, String> {
+        Self::create_inner(state, false)
+    }
+
+    fn create_inner(state: &AppState, own_launch: bool) -> Result<Tray, String> {
+        ensure_appkit(own_launch);
+
+        let handles = build_menu(state);
+        let _icon = TrayIconBuilder::new()
+            .with_menu(Box::new(handles.menu.clone()))
+            .with_tooltip("T_Music_Bot RPC")
+            .with_icon(load_icon())
+            .build()
+            .map_err(|e| format!("failed to create tray icon: {}", e))?;
+
+        Ok(Tray {
+            _icon,
+            events: MenuEvent::receiver().clone(),
+            handles,
+            last_ws: String::new(),
+            last_rpc: String::new(),
+            last_status_poll: Instant::now(),
+        })
+    }
+
+    /// Drains pending menu events, pumps GTK where needed, and refreshes the
+    /// status rows. Call from the main thread whenever the event loop wakes up.
+    pub fn pump(&mut self, state: &AppState) {
+        self.pump_platform();
+
+        while let Ok(event) = self.events.try_recv() {
+            self.handle_event(&event.id, state);
+        }
+
+        if self.last_status_poll.elapsed() >= Duration::from_millis(500) {
+            self.last_status_poll = Instant::now();
+            self.update_status(state);
+        }
+    }
+
+    /// Refreshes the WS/RPC status rows. Main thread only.
+    fn update_status(&mut self, state: &AppState) {
+        let (ws, rpc) = {
+            let s = state.blocking_read();
+            (s.ws_status.clone(), s.rpc_status.clone())
+        };
+        if ws != self.last_ws {
+            self.handles.ws_item.set_text(format!("WS: {}", ws));
+            self.last_ws = ws;
+        }
+        if rpc != self.last_rpc {
+            self.handles.rpc_item.set_text(format!("RPC: {}", rpc));
+            self.last_rpc = rpc;
         }
     }
 
     #[cfg(target_os = "linux")]
-    {
-        let event_receiver = event_receiver.clone();
-        let loop_state_2 = loop_state_2.clone();
-        let device_items = device_items.clone();
-
-        gtk::glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
-            while let Ok(event) = event_receiver.try_recv() {
-                if event.id == quit_id {
-                    let _ = loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-                    loop_state_2.blocking_write().is_shutting_down = true;
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                    std::process::exit(0);
-                }
-                if event.id == logs_id { let _ = open::that(crate::utils::get_log_path()); }
-                if event.id == settings_id {
-                    let port = loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
-                    let _ = open::that(format!("http://localhost:{}/settings", port));
-                }
-                
-                // AUDIO DEVICE SELECTION
-                for (item, name) in &device_items {
-                    if event.id == item.id() {
-                        for (other_it, _) in &device_items {
-                            if other_it.id() != item.id() { other_it.set_checked(false); }
-                        }
-                        item.set_checked(true);
-
-                        let mut s = loop_state_2.blocking_write();
-                        if let Some(st) = s.settings.as_mut() {
-                            st.overlay.visualizer.audio_device = name.clone();
-                            crate::config::save_settings(st);
-                            info!("[Tray] Audio device updated: {}", name);
-                            
-                            // Trigger visualizer restart!
-                            let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
-                        }
-                    }
-                }
-            }
-            gtk::glib::ControlFlow::Continue
-        });
-
-        gtk::main();
+    fn pump_platform(&self) {
+        // GTK menus only dispatch from the GTK main loop; pump it without blocking.
+        while gtk::events_pending() {
+            gtk::main_iteration_do(false);
+        }
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        use objc2_app_kit::NSApplication;
-        use objc2_foundation::MainThreadMarker;
+    #[cfg(not(target_os = "linux"))]
+    fn pump_platform(&self) {}
 
-        if let Some(mtm) = MainThreadMarker::new() {
-            let app = NSApplication::sharedApplication(mtm);
+    fn handle_event(&mut self, id: &tray_icon::menu::MenuId, state: &AppState) {
+        if *id == self.handles.quit_id {
+            let _ = state.blocking_read().overlay_tx.send(
+                serde_json::json!({ "type": "program_shutdown" }).to_string(),
+            );
+            state.blocking_write().is_shutting_down = true;
+            std::thread::sleep(Duration::from_millis(500));
+            std::process::exit(0);
+        }
 
-            struct PollContext {
-                event_receiver: crossbeam_channel::Receiver<tray_icon::menu::MenuEvent>,
-                loop_state_2: crate::AppState,
-                device_items: Vec<(tray_icon::menu::CheckMenuItem, String)>,
-                quit_id: tray_icon::menu::MenuId,
-                logs_id: tray_icon::menu::MenuId,
-                settings_id: tray_icon::menu::MenuId,
+        if *id == self.handles.logs_id {
+            let _ = open::that(crate::utils::get_log_path());
+            return;
+        }
+
+        if *id == self.handles.settings_id {
+            let port = state
+                .blocking_read()
+                .settings
+                .as_ref()
+                .map(|s| s.overlay.port)
+                .unwrap_or(3000);
+            let _ = open::that(format!("http://localhost:{}/settings", port));
+            return;
+        }
+
+        // Audio device selection: the stored value is the stable device id.
+        let selected = self
+            .handles
+            .device_items
+            .iter()
+            .find(|(item, _)| *item.id() == *id)
+            .map(|(_, dev_id)| dev_id.clone());
+
+        if let Some(device_id) = selected {
+            for (item, dev_id) in &self.handles.device_items {
+                item.set_checked(*dev_id == device_id);
             }
 
-            unsafe fn get_main_queue() -> *mut std::ffi::c_void {
-                extern "C" {
-                    static _dispatch_main_q: std::ffi::c_void;
-                }
-                &_dispatch_main_q as *const std::ffi::c_void as *mut std::ffi::c_void
-            }
-
-            extern "C" fn poll_loop(ctx_ptr: *mut std::ffi::c_void) {
-                unsafe {
-                    let ctx = &mut *(ctx_ptr as *mut PollContext);
-
-                    while let Ok(event) = ctx.event_receiver.try_recv() {
-                        if event.id == ctx.quit_id {
-                            let _ = ctx.loop_state_2.blocking_read().overlay_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-                            ctx.loop_state_2.blocking_write().is_shutting_down = true;
-                            std::thread::sleep(std::time::Duration::from_millis(500));
-                            std::process::exit(0);
-                        }
-                        if event.id == ctx.logs_id { let _ = open::that(crate::utils::get_log_path()); }
-                        if event.id == ctx.settings_id {
-                            let port = ctx.loop_state_2.blocking_read().settings.as_ref().unwrap().overlay.port;
-                            let _ = open::that(format!("http://localhost:{}/settings", port));
-                        }
-                        
-                        // AUDIO DEVICE SELECTION
-                        for (item, name) in &ctx.device_items {
-                            if event.id == item.id() {
-                                for (other_it, _) in &ctx.device_items {
-                                    if other_it.id() != item.id() { other_it.set_checked(false); }
-                                }
-                                item.set_checked(true);
-
-                                let mut s = ctx.loop_state_2.blocking_write();
-                                if let Some(st) = s.settings.as_mut() {
-                                    st.overlay.visualizer.audio_device = name.clone();
-                                    crate::config::save_settings(st);
-                                    info!("[Tray] Audio device updated: {}", name);
-                                    
-                                    // Trigger visualizer restart!
-                                    let _ = s.overlay_tx.send(serde_json::json!({ "type": "settings_update" }).to_string());
-                                }
-                            }
-                        }
-                    }
-
-                    extern "C" {
-                        fn dispatch_time(when: u64, delta: i64) -> u64;
-                        fn dispatch_after_f(
-                            when: u64,
-                            queue: *mut std::ffi::c_void,
-                            context: *mut std::ffi::c_void,
-                            work: extern "C" fn(*mut std::ffi::c_void),
-                        );
-                    }
-
-                    let delay_ns = 50 * 1_000_000; // 50ms
-                    let when = dispatch_time(0, delay_ns);
-                    let queue = get_main_queue();
-                    dispatch_after_f(when, queue, ctx_ptr, poll_loop);
-                }
-            }
-
-            let ctx = Box::new(PollContext {
-                event_receiver: event_receiver.clone(),
-                loop_state_2: loop_state_2.clone(),
-                device_items: device_items.clone(),
-                quit_id: quit_id.clone(),
-                logs_id: logs_id.clone(),
-                settings_id: settings_id.clone(),
-            });
-
-            unsafe {
-                extern "C" {
-                    fn dispatch_async_f(
-                        queue: *mut std::ffi::c_void,
-                        context: *mut std::ffi::c_void,
-                        work: extern "C" fn(*mut std::ffi::c_void),
-                    );
-                }
-                let queue = get_main_queue();
-                dispatch_async_f(queue, Box::into_raw(ctx) as *mut std::ffi::c_void, poll_loop);
-
-                app.run();
+            let mut s = state.blocking_write();
+            if let Some(st) = s.settings.as_mut() {
+                st.overlay.visualizer.audio_device = device_id.clone();
+                crate::config::save_settings(st);
+                info!("[Tray] Audio device updated: {}", device_id);
+                // Restart the visualizer with the new device.
+                let _ = s.overlay_tx.send(
+                    serde_json::json!({ "type": "settings_update" }).to_string(),
+                );
             }
         }
     }
 }
 
-fn build_menu(state: &AppState, rt: &Arc<Runtime>) -> (Menu, Vec<(CheckMenuItem, String)>, tray_icon::menu::MenuId, tray_icon::menu::MenuId, tray_icon::menu::MenuId) {
+/// Whether a listed device is the one selected in settings. Older versions
+/// stored the plain device name, so accept that too when showing checkmarks.
+fn matches_current(d: &crate::visualizer::backend::DeviceInfo, current: &str) -> bool {
+    d.id.eq_ignore_ascii_case(current) || d.name == current
+}
+
+fn build_menu(state: &AppState) -> MenuHandles {
     let menu = Menu::new();
-    let version_string = format!("T_Music_Bot RPC v{}", env!("CARGO_PKG_VERSION"));
-    let version_item = MenuItem::new(version_string, false, None);
+    let version_item = MenuItem::new(
+        format!("T_Music_Bot RPC v{}", env!("CARGO_PKG_VERSION")),
+        false,
+        None,
+    );
     let _ = menu.append(&version_item);
     let _ = menu.append(&PredefinedMenuItem::separator());
-    
+
     let ws_item = MenuItemBuilder::new().text("WS: Disconnected").enabled(false).build();
     let rpc_item = MenuItemBuilder::new().text("RPC: Disconnected").enabled(false).build();
+    let _ = menu.append(&ws_item);
+    let _ = menu.append(&rpc_item);
+    let _ = menu.append(&PredefinedMenuItem::separator());
     let open_settings = MenuItemBuilder::new().text("Open Settings").enabled(true).build();
     let open_logs = MenuItemBuilder::new().text("Open Logs").enabled(true).build();
     let quit = MenuItemBuilder::new().text("Quit").enabled(true).build();
 
-    let settings = rt.block_on(async { state.read().await.settings.as_ref().unwrap().clone() });
-    let current_device = settings.overlay.visualizer.audio_device;
+    let (current_device, want_default) = {
+        let s = state.blocking_read();
+        let dev = s
+            .settings
+            .as_ref()
+            .map(|st| st.overlay.visualizer.audio_device.clone())
+            .unwrap_or_else(|| "default".to_string());
+        let def = crate::visualizer::backend::is_default_request(&dev);
+        (dev, def)
+    };
 
-    // AUDIO DEVICE SELECTION
-    let devices = crate::utils::get_audio_devices();
-    let mut device_items = Vec::new();
-    for d in devices {
-        let is_selected = d == current_device || (current_device == "default" && d.to_lowercase() == "default");
-        let display_name = format_device_name(&d);
-        let item = CheckMenuItemBuilder::new().text(&display_name).enabled(true).checked(is_selected).build();
-        device_items.push((item, d));
+    let devices = crate::visualizer::backend::list_devices();
+    let playback: Vec<&crate::visualizer::backend::DeviceInfo> =
+        devices.iter().filter(|d| d.kind.is_playback()).collect();
+    let capture: Vec<&crate::visualizer::backend::DeviceInfo> =
+        devices.iter().filter(|d| !d.kind.is_playback()).collect();
+
+    // Same split as the Windows Sound control panel: playback (desktop audio)
+    // and capture (microphones) are separate menus, labels are "Name (ID)".
+    let mut device_items: Vec<(CheckMenuItem, String)> = Vec::new();
+
+    let default_item = CheckMenuItemBuilder::new()
+        .text("System Default (Desktop Audio)")
+        .enabled(true)
+        .checked(want_default)
+        .build();
+    device_items.push((default_item, "default".to_string()));
+
+    let playback_menu = SubmenuBuilder::new().text("Playback Device").enabled(true)
+        .build()
+        .expect("playback submenu");
+    let _ = playback_menu.append(&device_items[0].0);
+    for d in &playback {
+        let item = CheckMenuItemBuilder::new()
+            .text(&d.label)
+            .enabled(true)
+            .checked(!want_default && matches_current(d, &current_device))
+            .build();
+        let _ = playback_menu.append(&item);
+        device_items.push((item, d.id.clone()));
     }
+    let _ = menu.append(&playback_menu);
 
-    let _ = menu.append(&ws_item);
-    let _ = menu.append(&rpc_item);
-    let _ = menu.append(&PredefinedMenuItem::separator());
-
-    let devices_menu = SubmenuBuilder::new().text("Playback Device").enabled(true);
-    let dm = devices_menu.build().unwrap();
-    for (item, _) in &device_items {
-        let _ = dm.append(item);
+    if !capture.is_empty() {
+        let capture_menu = SubmenuBuilder::new().text("Capture Device").enabled(true)
+            .build()
+            .expect("capture submenu");
+        for d in &capture {
+            let item = CheckMenuItemBuilder::new()
+                .text(&d.label)
+                .enabled(true)
+                .checked(!want_default && matches_current(d, &current_device))
+                .build();
+            let _ = capture_menu.append(&item);
+            device_items.push((item, d.id.clone()));
+        }
+        let _ = menu.append(&capture_menu);
     }
-    let _ = menu.append(&dm);
 
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&open_settings);
     let _ = menu.append(&open_logs);
     let _ = menu.append(&quit);
 
-    unsafe { GLOBAL_TRAY_HANDLE = Some(TrayHandle { ws_item, rpc_item }); }
-    (menu, device_items, quit.id().clone(), open_logs.id().clone(), open_settings.id().clone())
-}
-
-fn update_tray_status_direct(ws: String, rpc: String) {
-    unsafe {
-        if let Some(h) = (&raw const GLOBAL_TRAY_HANDLE).as_ref().unwrap() {
-            let _ = h.ws_item.set_text(format!("WS: {}", ws));
-            let _ = h.rpc_item.set_text(format!("RPC: {}", rpc));
-        }
+    MenuHandles {
+        ws_item,
+        rpc_item,
+        menu,
+        device_items,
+        quit_id: quit.id().clone(),
+        logs_id: open_logs.id().clone(),
+        settings_id: open_settings.id().clone(),
     }
-}
-
-fn format_device_name(name: &str) -> String {
-    #[cfg(target_os = "linux")]
-    {
-        if name == "default" {
-            return "Default".to_string();
-        }
-        if name == "pipewire" {
-            return "PipeWire".to_string();
-        }
-        if name == "pulse" {
-            return "PulseAudio".to_string();
-        }
-        if name == "jack" {
-            return "JACK".to_string();
-        }
-
-        if name.contains(':') {
-            let parts: Vec<&str> = name.split(':').collect();
-            let dev_type = parts[0];
-            let rest = parts[1];
-
-            let mut card_name = "Unknown";
-            let mut dev_num = None;
-
-            for param in rest.split(',') {
-                if param.starts_with("CARD=") {
-                    card_name = &param[5..];
-                } else if param.starts_with("DEV=") {
-                    dev_num = Some(&param[4..]);
-                }
-            }
-
-            let type_label = match dev_type {
-                "sysdefault" => "System Default",
-                "front" => "Front Speakers",
-                "surround40" => "Surround 4.0",
-                "surround51" => "Surround 5.1",
-                "surround71" => "Surround 7.1",
-                "hdmi" => "HDMI Output",
-                "iec958" => "S/PDIF Digital Output",
-                "dmix" => "Direct Mixer",
-                other => other,
-            };
-
-            let formatted_card = card_name.replace("_", " ");
-
-            let formatted = if let Some(dev) = dev_num {
-                format!("{} ({}, Device {})", type_label, formatted_card, dev)
-            } else {
-                format!("{} ({})", type_label, formatted_card)
-            };
-            return formatted;
-        }
-    }
-    name.to_string()
 }

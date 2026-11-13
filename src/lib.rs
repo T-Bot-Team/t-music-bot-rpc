@@ -14,6 +14,7 @@ pub mod server;
 pub mod rpc;
 pub mod visualizer;
 pub mod tray;
+pub mod ui;
 
 pub use models::*;
 

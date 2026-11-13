@@ -1,25 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-#[macro_export]
-macro_rules! info {
-    ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        $crate::utils::log_message(&msg);
-    }};
-}
-
-pub mod models;
-pub mod config;
-pub mod audio_bus;
-pub mod utils;
-pub mod server;
-pub mod rpc;
-pub mod visualizer;
-pub mod tray;
-
-pub use models::*;
-
-pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+use t_music_bot_rpc::*;
 
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
@@ -32,7 +13,7 @@ fn main() {
 
         std::panic::set_hook(Box::new(|panic_info| {
             let msg = format!("[CRITICAL PANIC] The application crashed: {}", panic_info);
-            crate::utils::log_message(&msg);
+            t_music_bot_rpc::utils::log_message(&msg);
         }));
     }
 
@@ -87,10 +68,10 @@ fn main() {
                 let settings = s.settings.as_ref().unwrap();
                 (settings.overlay.port, settings.allow_firewall)
             };
-            
+
             let s_inst = s_srv.clone();
             let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
-            
+
             let mut server_task = tokio::spawn(async move {
                 server::start_server(s_inst, stop_rx).await;
             });
@@ -113,7 +94,7 @@ fn main() {
                                         info!("[Server] Settings change detected (Port: {} -> {}, LAN: {} -> {}). Restarting...", current_port, new_port, current_allow_firewall, new_allow_firewall);
                                         let _ = stop_tx.send(());
                                         let _ = server_task.await;
-                                        break; 
+                                        break;
                                     }
                                 }
                             }
@@ -176,7 +157,7 @@ fn main() {
                 info!("[Visualizer] Starting audio capture...");
                 let abort_handle = visualizer::start_visualizer(s3.clone()).await;
                 let current_config = config.clone();
-                
+
                 // Wait for restart signal
                 loop {
                     match restart_rx.recv().await {
@@ -191,7 +172,7 @@ fn main() {
                                 if serde_json::to_string(&new_config).unwrap() != serde_json::to_string(&current_config).unwrap() {
                                     info!("[Visualizer] Visualizer settings updated. Re-initializing...");
                                     if let Some(h) = abort_handle { h.abort(); let _ = h.await; }
-                                    break; 
+                                    break;
                                 }
                             }
                         }
@@ -226,9 +207,14 @@ fn main() {
     }).expect("Error setting Ctrl-C handler");
 
     #[cfg(target_os = "linux")]
-    {
-        gtk::init().unwrap();
+    if let Err(e) = gtk::init() {
+        info!("[UI] GTK unavailable ({}); continuing without a tray menu.", e);
+        ui::set_gui_available(false);
     }
 
-    tray::create_tray(state, rt);
+    // The runtime must stay alive for as long as the UI loop runs.
+    let _rt = rt;
+
+    // Main thread: event loop and tray. Never returns while the process is alive.
+    ui::run(state);
 }
