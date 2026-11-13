@@ -7,6 +7,18 @@ fn main() {
         res.set("CompanyName", "T_Bot Team");
         res.set("LegalCopyright", "Copyright © 2026 T_Bot Team");
         res.set("InternalName", "t-music-bot-rpc");
-        res.compile().unwrap();
+
+        // Embedding the icon/version needs a Windows resource compiler
+        // (rc.exe on Windows hosts). Cross `cargo check`s from Linux/macOS
+        // don't have one — warn and continue there, so the Windows target
+        // can still be type-checked from any OS. Native Windows builds stay
+        // strict: a broken toolchain must not ship a resource-less exe.
+        let host = std::env::var("HOST").unwrap_or_default();
+        if let Err(e) = res.compile() {
+            if host.contains("windows") {
+                panic!("failed to embed Windows resources: {e}");
+            }
+            println!("cargo:warning=Windows resources skipped while cross-checking: {e}");
+        }
     }
 }
