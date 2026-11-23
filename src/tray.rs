@@ -12,6 +12,7 @@ struct MenuHandles {
     menu: Menu,
     ws_item: MenuItem,
     rpc_item: MenuItem,
+    audio_item: MenuItem,
     /// (checked item, stable device id) for every selectable audio device.
     device_items: Vec<(CheckMenuItem, String)>,
     quit_id: tray_icon::menu::MenuId,
@@ -32,7 +33,9 @@ pub struct Tray {
     handles: MenuHandles,
     last_ws: String,
     last_rpc: String,
+    last_audio: String,
     last_status_poll: Instant,
+    devices: Vec<crate::visualizer::backend::DeviceInfo>,
 }
 
 /// Initializes AppKit before any `NSStatusItem` is created.
@@ -101,7 +104,8 @@ impl Tray {
     fn create_inner(state: &AppState, own_launch: bool) -> Result<Tray, String> {
         ensure_appkit(own_launch);
 
-        let handles = build_menu(state);
+        let devices = crate::visualizer::backend::list_devices();
+        let (handles, current_audio) = build_menu(state, &devices);
         let _icon = TrayIconBuilder::new()
             .with_menu(Box::new(handles.menu.clone()))
             .with_tooltip("T_Music_Bot RPC")
@@ -115,7 +119,9 @@ impl Tray {
             handles,
             last_ws: String::new(),
             last_rpc: String::new(),
+            last_audio: current_audio,
             last_status_poll: Instant::now(),
+            devices,
         })
     }
 
@@ -134,11 +140,16 @@ impl Tray {
         }
     }
 
-    /// Refreshes the WS/RPC status rows. Main thread only.
+    /// Refreshes the WS/RPC/Audio status rows. Main thread only.
     fn update_status(&mut self, state: &AppState) {
-        let (ws, rpc) = {
+        let (ws, rpc, audio_dev) = {
             let s = state.blocking_read();
-            (s.ws_status.clone(), s.rpc_status.clone())
+            let dev = s
+                .settings
+                .as_ref()
+                .map(|st| st.overlay.visualizer.audio_device.clone())
+                .unwrap_or_else(|| "default".to_string());
+            (s.ws_status.clone(), s.rpc_status.clone(), dev)
         };
         if ws != self.last_ws {
             self.handles.ws_item.set_text(format!("WS: {}", ws));
@@ -147,6 +158,26 @@ impl Tray {
         if rpc != self.last_rpc {
             self.handles.rpc_item.set_text(format!("RPC: {}", rpc));
             self.last_rpc = rpc;
+        }
+        if audio_dev != self.last_audio {
+            let label = device_display_name(&audio_dev, &self.devices);
+            self.handles.audio_item.set_text(format!("Audio: {}", label));
+            let want_default = crate::visualizer::backend::is_default_request(&audio_dev);
+            for (item, dev_id) in &self.handles.device_items {
+                if dev_id == "default" {
+                    item.set_checked(want_default);
+                } else {
+                    item.set_checked(
+                        !want_default
+                            && (dev_id == &audio_dev
+                                || self
+                                    .devices
+                                    .iter()
+                                    .any(|d| &d.id == dev_id && matches_current(d, &audio_dev))),
+                    );
+                }
+            }
+            self.last_audio = audio_dev;
         }
     }
 
@@ -196,8 +227,13 @@ impl Tray {
             .map(|(_, dev_id)| dev_id.clone());
 
         if let Some(device_id) = selected {
+            let want_default = crate::visualizer::backend::is_default_request(&device_id);
             for (item, dev_id) in &self.handles.device_items {
-                item.set_checked(*dev_id == device_id);
+                if dev_id == "default" {
+                    item.set_checked(want_default);
+                } else {
+                    item.set_checked(!want_default && *dev_id == device_id);
+                }
             }
 
             let mut s = state.blocking_write();
@@ -210,7 +246,31 @@ impl Tray {
                     serde_json::json!({ "type": "settings_update" }).to_string(),
                 );
             }
+
+            let label = device_display_name(&device_id, &self.devices);
+            self.handles.audio_item.set_text(format!("Audio: {}", label));
+            self.last_audio = device_id;
         }
+    }
+}
+
+/// Formats a readable display name for the tray status row.
+pub(crate) fn device_display_name(
+    current: &str,
+    devices: &[crate::visualizer::backend::DeviceInfo],
+) -> String {
+    if crate::visualizer::backend::is_default_request(current) {
+        return "System Default".to_string();
+    }
+    if let Some(d) = devices.iter().find(|d| matches_current(d, current)) {
+        return d.name.clone();
+    }
+    let trimmed = current.trim();
+    if trimmed.chars().count() > 30 {
+        let end = trimmed.char_indices().nth(27).map(|(i, _)| i).unwrap_or(27);
+        format!("{}...", &trimmed[..end])
+    } else {
+        trimmed.to_string()
     }
 }
 
@@ -220,7 +280,10 @@ fn matches_current(d: &crate::visualizer::backend::DeviceInfo, current: &str) ->
     d.id.eq_ignore_ascii_case(current) || d.name == current
 }
 
-fn build_menu(state: &AppState) -> MenuHandles {
+fn build_menu(
+    state: &AppState,
+    devices: &[crate::visualizer::backend::DeviceInfo],
+) -> (MenuHandles, String) {
     let menu = Menu::new();
     let version_item = MenuItem::new(
         format!("T_Music_Bot RPC v{}", env!("CARGO_PKG_VERSION")),
@@ -229,15 +292,6 @@ fn build_menu(state: &AppState) -> MenuHandles {
     );
     let _ = menu.append(&version_item);
     let _ = menu.append(&PredefinedMenuItem::separator());
-
-    let ws_item = MenuItemBuilder::new().text("WS: Disconnected").enabled(false).build();
-    let rpc_item = MenuItemBuilder::new().text("RPC: Disconnected").enabled(false).build();
-    let _ = menu.append(&ws_item);
-    let _ = menu.append(&rpc_item);
-    let _ = menu.append(&PredefinedMenuItem::separator());
-    let open_settings = MenuItemBuilder::new().text("Open Settings").enabled(true).build();
-    let open_logs = MenuItemBuilder::new().text("Open Logs").enabled(true).build();
-    let quit = MenuItemBuilder::new().text("Quit").enabled(true).build();
 
     let (current_device, want_default) = {
         let s = state.blocking_read();
@@ -250,66 +304,107 @@ fn build_menu(state: &AppState) -> MenuHandles {
         (dev, def)
     };
 
-    let devices = crate::visualizer::backend::list_devices();
-    let playback: Vec<&crate::visualizer::backend::DeviceInfo> =
-        devices.iter().filter(|d| d.kind.is_playback()).collect();
-    let capture: Vec<&crate::visualizer::backend::DeviceInfo> =
-        devices.iter().filter(|d| !d.kind.is_playback()).collect();
+    let ws_item = MenuItemBuilder::new().text("WS: Disconnected").enabled(false).build();
+    let rpc_item = MenuItemBuilder::new().text("RPC: Disconnected").enabled(false).build();
+    let audio_display = device_display_name(&current_device, devices);
+    let audio_item = MenuItemBuilder::new()
+        .text(format!("Audio: {}", audio_display))
+        .enabled(false)
+        .build();
+    let _ = menu.append(&ws_item);
+    let _ = menu.append(&rpc_item);
+    let _ = menu.append(&audio_item);
+    let _ = menu.append(&PredefinedMenuItem::separator());
 
-    // Same split as the Windows Sound control panel: playback (desktop audio)
-    // and capture (microphones) are separate menus, labels are "Name (ID)".
+    let open_settings = MenuItemBuilder::new().text("Open Settings").enabled(true).build();
+    let open_logs = MenuItemBuilder::new().text("Open Logs").enabled(true).build();
+    let quit = MenuItemBuilder::new().text("Quit").enabled(true).build();
+
     let mut device_items: Vec<(CheckMenuItem, String)> = Vec::new();
 
     let default_item = CheckMenuItemBuilder::new()
-        .text("System Default (Desktop Audio)")
+        .text("System Default")
         .enabled(true)
         .checked(want_default)
         .build();
     device_items.push((default_item, "default".to_string()));
 
-    let playback_menu = SubmenuBuilder::new().text("Playback Device").enabled(true)
+    let audio_menu = SubmenuBuilder::new()
+        .text("Audio Input")
+        .enabled(true)
         .build()
-        .expect("playback submenu");
-    let _ = playback_menu.append(&device_items[0].0);
-    for d in &playback {
-        let item = CheckMenuItemBuilder::new()
-            .text(&d.label)
-            .enabled(true)
-            .checked(!want_default && matches_current(d, &current_device))
-            .build();
-        let _ = playback_menu.append(&item);
-        device_items.push((item, d.id.clone()));
-    }
-    let _ = menu.append(&playback_menu);
+        .expect("audio submenu");
+    let _ = audio_menu.append(&device_items[0].0);
 
-    if !capture.is_empty() {
-        let capture_menu = SubmenuBuilder::new().text("Capture Device").enabled(true)
-            .build()
-            .expect("capture submenu");
-        for d in &capture {
+    if !devices.is_empty() {
+        let _ = audio_menu.append(&PredefinedMenuItem::separator());
+        for d in devices {
             let item = CheckMenuItemBuilder::new()
                 .text(&d.label)
                 .enabled(true)
                 .checked(!want_default && matches_current(d, &current_device))
                 .build();
-            let _ = capture_menu.append(&item);
+            let _ = audio_menu.append(&item);
             device_items.push((item, d.id.clone()));
         }
-        let _ = menu.append(&capture_menu);
     }
+    let _ = menu.append(&audio_menu);
 
     let _ = menu.append(&PredefinedMenuItem::separator());
     let _ = menu.append(&open_settings);
     let _ = menu.append(&open_logs);
     let _ = menu.append(&quit);
 
-    MenuHandles {
-        ws_item,
-        rpc_item,
-        menu,
-        device_items,
-        quit_id: quit.id().clone(),
-        logs_id: open_logs.id().clone(),
-        settings_id: open_settings.id().clone(),
+    (
+        MenuHandles {
+            ws_item,
+            rpc_item,
+            audio_item,
+            menu,
+            device_items,
+            quit_id: quit.id().clone(),
+            logs_id: open_logs.id().clone(),
+            settings_id: open_settings.id().clone(),
+        },
+        current_device,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::visualizer::backend::{DeviceInfo, DeviceKind};
+
+    #[test]
+    fn test_device_display_name() {
+        let devices = vec![
+            DeviceInfo::new(
+                "{0.0.0.00000000}.{123}",
+                "Speakers (Realtek Audio)",
+                DeviceKind::OutputLoopback,
+                true,
+            ),
+            DeviceInfo::new(
+                "alsa_input.mic",
+                "USB Microphone",
+                DeviceKind::Input,
+                false,
+            ),
+        ];
+
+        assert_eq!(device_display_name("default", &devices), "System Default");
+        assert_eq!(device_display_name("", &devices), "System Default");
+        assert_eq!(
+            device_display_name("{0.0.0.00000000}.{123}", &devices),
+            "Speakers (Realtek Audio)"
+        );
+        assert_eq!(
+            device_display_name("alsa_input.mic", &devices),
+            "USB Microphone"
+        );
+        assert_eq!(
+            device_display_name("Speakers (Realtek Audio)", &devices),
+            "Speakers (Realtek Audio)"
+        );
     }
 }

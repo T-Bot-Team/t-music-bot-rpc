@@ -37,9 +37,9 @@ fn get_widget_styles(
             --bg-pure: {bg_pure};
         }}
         html, body {{ background: transparent !important; margin: 0; padding: 0; overflow: hidden; width: 100vw; height: 100vh; display: flex; align-items: flex-start; justify-content: flex-start; }}
-        body {{ font-family: 'Inter', sans-serif; }}
-        #scale-wrapper {{ display: inline-flex; width: max-content; height: max-content; position: relative; opacity: {overlay_global_enabled}; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
-        #widget {{ display: inline-flex; align-items: center; justify-content: center; padding: var(--widget-padding); border-radius: var(--outer-radius); width: calc({widget_width} - 4px); height: calc({widget_height} - 4px); box-sizing: border-box; position: relative; gap: {gap}; overflow: hidden; {border_css} margin: 2px; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s cubic-bezier(0.4, 0, 0.2, 1), border 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1); isolation: isolate; }}
+        body {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }}
+        #scale-wrapper {{ display: inline-flex; width: max-content; max-width: 100vw; height: max-content; position: relative; opacity: {overlay_global_enabled}; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
+        #widget {{ display: inline-flex; align-items: center; justify-content: center; padding: var(--widget-padding); border-radius: var(--outer-radius); width: calc({widget_width} - 4px); max-width: calc(100vw - 4px); height: calc({widget_height} - 4px); box-sizing: border-box; position: relative; gap: {gap}; overflow: hidden; {border_css} margin: 2px; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s cubic-bezier(0.4, 0, 0.2, 1), border 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1); isolation: isolate; }}
         #bg-blur {{ position: absolute; inset: -40px; z-index: -2; filter: blur(60px); opacity: 0; background-size: cover; background-position: center; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; }}
         #bg-blur.visible {{ opacity: {edge_opacity}; }}
         #bg-full {{ position: absolute; inset: 0; z-index: -3; background-size: cover; background-position: center; opacity: 0; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; }}
@@ -48,7 +48,7 @@ fn get_widget_styles(
         #img-container {{ position: relative !important; flex-shrink: 0; z-index: 10; display: {show_thumb_style}; width: {thumb_size}; height: {thumb_size}; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
         #track-img-wrapper {{ width: 100%; height: 100%; border-radius: var(--inner-radius); overflow: hidden; position: relative; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
         #track-img {{ width: 100%; height: 100%; object-fit: cover; opacity: 1; }}
-        #avatar-img {{ position: absolute; top: {avatar_offset}; left: {avatar_offset}; width: {avatar_size}; height: {avatar_size}; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: none; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; transform: translate(0, 0); }}
+        #avatar-img {{ position: absolute; top: {avatar_offset}; left: {avatar_offset}; width: {avatar_size}; height: {avatar_size}; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid transparent; box-sizing: border-box; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; transform: translate(0, 0); }}
         #avatar-img.loading {{ opacity: 0; }}
         #info {{ display: flex; flex-direction: column; justify-content: center; min-height: 100px; flex-grow: 1; min-width: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 15px; }}
         #info.centered {{ align-items: center; text-align: center; }}

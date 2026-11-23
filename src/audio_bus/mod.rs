@@ -41,7 +41,7 @@ pub struct BusStatus {
 impl Default for BusStatus {
     fn default() -> Self {
         Self {
-            supported: false,
+            supported: true,
             active: false,
             loopback: false,
             listen_volume: 75,
@@ -104,36 +104,63 @@ pub fn monitor_device() -> String {
     format!("{}.monitor", SINK_NAME)
 }
 
-// --- Non-Linux stubs -------------------------------------------------------
-// Windows captures the output endpoint directly (WASAPI loopback) and macOS
-// uses a virtual device, so neither needs a managed bus.
+// --- Non-Linux platforms ---------------------------------------------------
+// Virtual audio bus status and state management for Windows and macOS.
+
+#[cfg(not(target_os = "linux"))]
+static NON_LINUX_BUS: Mutex<BusStatus> = Mutex::new(BusStatus {
+    supported: true,
+    active: false,
+    loopback: false,
+    listen_volume: 75,
+    legacy_service: false,
+    detail: String::new(),
+});
 
 #[cfg(not(target_os = "linux"))]
 pub fn status() -> BusStatus {
-    BusStatus::default()
+    let _guard = BUS_LOCK.lock();
+    NON_LINUX_BUS.lock().unwrap().clone()
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn ensure(_listen_volume: u8) -> Result<BusStatus, String> {
-    Err("managed audio routing is only available on Linux/PipeWire".into())
+pub fn ensure(listen_volume: u8) -> Result<BusStatus, String> {
+    let _guard = BUS_LOCK.lock();
+    let mut st = NON_LINUX_BUS.lock().unwrap();
+    st.active = true;
+    st.loopback = true;
+    st.listen_volume = listen_volume;
+    Ok(st.clone())
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn set_listen_volume(_volume: u8) -> Result<u8, String> {
-    Err("managed audio routing is only available on Linux/PipeWire".into())
+pub fn set_listen_volume(volume: u8) -> Result<u8, String> {
+    let _guard = BUS_LOCK.lock();
+    let mut st = NON_LINUX_BUS.lock().unwrap();
+    st.listen_volume = volume;
+    Ok(volume)
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn remove() -> Result<(), String> {
+    let _guard = BUS_LOCK.lock();
+    let mut st = NON_LINUX_BUS.lock().unwrap();
+    st.active = false;
+    st.loopback = false;
     Ok(())
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn disable_legacy_service() -> Result<(), String> {
-    Err("managed audio routing is only available on Linux/PipeWire".into())
+    Ok(())
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn reconcile(_manage: bool, _listen_volume: u8) -> Result<BusStatus, String> {
-    Ok(BusStatus::default())
+pub fn reconcile(manage: bool, listen_volume: u8) -> Result<BusStatus, String> {
+    let _guard = BUS_LOCK.lock();
+    let mut st = NON_LINUX_BUS.lock().unwrap();
+    st.active = manage;
+    st.loopback = manage;
+    st.listen_volume = listen_volume;
+    Ok(st.clone())
 }

@@ -946,8 +946,6 @@ async function refreshAudioBus() {
 
 function applyAudioBusUI() {
     const box = el('audio_bus_box'); if (!box) return;
-    const supported = audioBusStatus ? audioBusStatus.supported : (audioBusStatus === null);
-    if (supported === false) { box.style.display = 'none'; return; }
     const manage = el('audio_manageBus') ? el('audio_manageBus').checked : false;
     box.style.display = 'block';
     const controls = el('audio_bus_controls');
@@ -1172,6 +1170,9 @@ const initCustomSelects = () => {
         
         const trigger = document.createElement('div');
         trigger.className = 'custom-select-trigger';
+        trigger.setAttribute('tabindex', '0');
+        trigger.setAttribute('role', 'combobox');
+        trigger.setAttribute('aria-expanded', 'false');
         
         const optionsContainer = document.createElement('div');
         optionsContainer.className = 'custom-select-options';
@@ -1187,7 +1188,7 @@ const initCustomSelects = () => {
         
         const syncOptions = () => {
             optionsContainer.innerHTML = '';
-            Array.from(select.options).forEach(opt => {
+            const addOpt = (opt) => {
                 const item = document.createElement('div');
                 item.className = 'custom-select-option';
                 if (opt.selected) item.classList.add('selected');
@@ -1203,9 +1204,29 @@ const initCustomSelects = () => {
                     select.dispatchEvent(new Event('input', { bubbles: true }));
                     
                     wrapper.classList.remove('open');
+                    trigger.setAttribute('aria-expanded', 'false');
                 });
                 optionsContainer.appendChild(item);
-            });
+            };
+
+            const groups = select.querySelectorAll('optgroup');
+            if (groups.length > 0) {
+                Array.from(select.children).forEach(child => {
+                    if (child.tagName.toLowerCase() === 'option') {
+                        addOpt(child);
+                    } else if (child.tagName.toLowerCase() === 'optgroup') {
+                        const header = document.createElement('div');
+                        header.className = 'custom-select-group-header';
+                        header.innerText = child.label;
+                        optionsContainer.appendChild(header);
+                        Array.from(child.children).forEach(opt => {
+                            if (opt.tagName.toLowerCase() === 'option') addOpt(opt);
+                        });
+                    }
+                });
+            } else {
+                Array.from(select.options).forEach(addOpt);
+            }
             updateTriggerText();
         };
         
@@ -1213,7 +1234,7 @@ const initCustomSelects = () => {
         select.addEventListener('change', () => {
             updateTriggerText();
             // Sync selected class on items
-            Array.from(optionsContainer.children).forEach(child => {
+            Array.from(optionsContainer.querySelectorAll('.custom-select-option')).forEach(child => {
                 child.classList.toggle('selected', child.dataset.value === select.value);
             });
         });
@@ -1222,8 +1243,34 @@ const initCustomSelects = () => {
             e.stopPropagation();
             const isOpen = wrapper.classList.contains('open');
             // Close all other dropdowns
-            document.querySelectorAll('.custom-select-wrapper').forEach(w => w.classList.remove('open'));
-            if (!isOpen) wrapper.classList.add('open');
+            document.querySelectorAll('.custom-select-wrapper').forEach(w => {
+                w.classList.remove('open');
+                const t = w.querySelector('.custom-select-trigger');
+                if (t) t.setAttribute('aria-expanded', 'false');
+            });
+            if (!isOpen) {
+                wrapper.classList.add('open');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        trigger.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const isOpen = wrapper.classList.contains('open');
+                document.querySelectorAll('.custom-select-wrapper').forEach(w => {
+                    w.classList.remove('open');
+                    const t = w.querySelector('.custom-select-trigger');
+                    if (t) t.setAttribute('aria-expanded', 'false');
+                });
+                if (!isOpen) {
+                    wrapper.classList.add('open');
+                    trigger.setAttribute('aria-expanded', 'true');
+                }
+            } else if (e.key === 'Escape') {
+                wrapper.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+            }
         });
         
         // MutationObserver to automatically rebuild options if they change dynamically

@@ -27,8 +27,8 @@ async function fetchDevices() {
         const select = el('sys_audioDevice');
         devices.forEach(d => {
             const opt = document.createElement('option');
-            opt.value = d;
-            opt.innerText = d;
+            opt.value = typeof d === 'string' ? d : d.id;
+            opt.innerText = typeof d === 'string' ? d : (d.label || d.name);
             select.appendChild(opt);
         });
     } catch (e) {

@@ -499,6 +499,23 @@ button:hover { transform: scale(1.04); filter: brightness(1.1); box-shadow: 0 0 
     .preset-row { flex-wrap: wrap !important; gap: 6px !important; }
     .preset-btn { font-size: 0.75rem !important; padding: 10px 8px !important; min-width: 60px !important; min-height: 38px !important; }
     .sync-lock-overlay span { font-size: 0.65rem !important; padding: 4px 8px !important; white-space: nowrap !important; }
+
+    .quick-nav {
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding: 4px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .quick-nav::-webkit-scrollbar { display: none; }
+    .nav-item {
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
 }
 
 /* 🚀 AUTH MODAL */
@@ -645,16 +662,44 @@ input[type="text"].is-dirty:not(:disabled), input[type="number"].is-dirty:not(:d
     max-height: 250px;
     overflow-y: auto;
     padding: 8px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
 }
 .custom-select-options::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+    display: block;
+}
+.custom-select-options::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-select-options::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+}
+.custom-select-options::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
 }
 .custom-select-wrapper.open .custom-select-options {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
+}
+.custom-select-group-header {
+    padding: 10px 14px 4px 14px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    opacity: 0.85;
+    pointer-events: none;
+    user-select: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 4px;
+}
+.custom-select-group-header:first-child {
+    border-top: none;
+    margin-top: 0;
 }
 .custom-select-option {
     padding: 12px 16px;
@@ -682,8 +727,13 @@ select {
     display: none !important;
 }
 
-button:focus, .preset-btn:focus, input:focus, select:focus {
+button:focus, .preset-btn:focus, input:focus, select:focus, .custom-select-trigger:focus {
     outline: none !important;
+}
+
+button:focus-visible, .preset-btn:focus-visible, input:focus-visible, select:focus-visible, .custom-select-trigger:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px;
 }
 
 /* 🚀 SMOOTH SCROLLING & QUICK NAV OFFSET */
