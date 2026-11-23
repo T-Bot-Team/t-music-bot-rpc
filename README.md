@@ -2,6 +2,10 @@
 
 A Discord Rich Presence client and OBS overlay for **T_Music_Bot**. Written in native Rust, one codebase for Windows, macOS and Linux, and it stays in your system tray once it's paired. The idea is simple: something you can leave running all day without ever noticing it's there.
 
+<p align="center">
+  <img src="assets/preview.gif" alt="T_Music_Bot RPC Preview" width="850">
+</p>
+
 ---
 
 ## Performance & Resource Footprint
@@ -19,6 +23,14 @@ Everything is configured from the web dashboard at `http://localhost:3000/settin
 - **Full** — cover art, track info, progress bar and spectrum bars along the bottom. When playback pauses, the background dims behind a blur.
 - **Compact bar** — track info side-by-side with the spectrum bars. Sits nicely on the top or bottom edge of a frame.
 - **Compact minimal** — a small card with the avatar and track name. Fits in a corner without eating screen space.
+
+#### OBS Studio Quick Setup
+Add an **OBS Browser Source** pointing to `http://localhost:3000`:
+- **Dimensions:** `800 x 200` for compact layouts, or `1000 x 360` for full layout.
+- **Instant Scene Overrides:** Override the active layout per scene by appending query parameters directly to the Browser Source URL:
+  - `http://localhost:3000/?layout=full` (Full banner with blurred art)
+  - `http://localhost:3000/?layout=compact-bar` (Horizontal bar for screen edges)
+  - `http://localhost:3000/?layout=compact-minimal` (Corner card)
 
 ### Spectrum Engine
 
