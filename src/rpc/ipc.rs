@@ -35,7 +35,7 @@ impl IpcClient {
         
         let pipes: Vec<i32> = if pipe == -1 { (0..10).collect() } else { vec![pipe] };
         
-        let temp_dirs = vec![
+        let temp_dirs = [
             std::env::var("XDG_RUNTIME_DIR").ok().map(std::path::PathBuf::from),
             std::env::var("TMPDIR").ok().map(std::path::PathBuf::from),
             std::env::var("TMP").ok().map(std::path::PathBuf::from),
@@ -44,12 +44,10 @@ impl IpcClient {
         ];
 
         for i in pipes {
-            for dir_opt in &temp_dirs {
-                if let Some(dir) = dir_opt {
-                    let path = dir.join(format!("discord-ipc-{}", i));
-                    if let Ok(stream) = UnixStream::connect(&path) {
-                        return Some(Self { socket: Some(stream) });
-                    }
+            for dir in temp_dirs.iter().flatten() {
+                let path = dir.join(format!("discord-ipc-{}", i));
+                if let Ok(stream) = UnixStream::connect(&path) {
+                    return Some(Self { socket: Some(stream) });
                 }
             }
         }
@@ -79,8 +77,11 @@ impl IpcClient {
             use std::io::Read;
             let mut header = [0u8; 8];
             socket.read_exact(&mut header)?;
-            let opcode = u32::from_le_bytes(header[0..4].try_into().unwrap());
-            let len = u32::from_le_bytes(header[4..8].try_into().unwrap());
+            let opcode = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
+            let len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
+            if len > 16 * 1024 * 1024 {
+                return Err("RPC packet exceeds 16MB limit".into());
+            }
             let mut buf = vec![0u8; len as usize];
             socket.read_exact(&mut buf)?;
             let json: Value = serde_json::from_slice(&buf)?;

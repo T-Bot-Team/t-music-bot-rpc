@@ -36,7 +36,7 @@ impl FftProcessor {
         }
         
         // Execute FFT in place
-        let _ = self.fft.process(&mut self.mono);
+        self.fft.process(&mut self.mono);
         
         &self.mono
     }

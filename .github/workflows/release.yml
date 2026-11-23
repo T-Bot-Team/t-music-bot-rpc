@@ -10,51 +10,210 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build - ${{ matrix.platform.os }}
-    runs-on: ${{ matrix.platform.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, suffix: .exe, name: T_Music_Bot_RPC }
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, suffix: "", name: T_Music_Bot-RPC }
-          - { os: macos-latest, target: x86_64-apple-darwin, suffix: "", name: T_Music_Bot-RPC_Intel }
-          - { os: macos-latest, target: aarch64-apple-darwin, suffix: "", name: T_Music_Bot-RPC_Apple_Silicon }
-
+  build-windows:
+    name: Build - Windows (x86_64)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Dependencies (Linux)
-        if: matrix.platform.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2-dev libgtk-3-dev libappindicator3-dev
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform.target }}
+          targets: x86_64-pc-windows-msvc
+          components: clippy
+
+      - name: Clippy
+        run: cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --target x86_64-pc-windows-msvc
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.platform.target }}
+        run: cargo build --release --target x86_64-pc-windows-msvc
 
-      - name: Rename binary
+      - name: Package Windows (.zip)
         shell: bash
         run: |
-          mkdir -p dist
-          # Exact naming per user requirement
-          cp "target/${{ matrix.platform.target }}/release/t-music-bot-rpc${{ matrix.platform.suffix }}" "dist/${{ matrix.platform.name }}${{ matrix.platform.suffix }}"
+          mkdir -p dist/pkg
+          cp target/x86_64-pc-windows-msvc/release/t-music-bot-rpc.exe dist/pkg/T_Music_Bot_RPC.exe
+          cp target/x86_64-pc-windows-msvc/release/t-music-bot-rpc.exe dist/T_Music_Bot_RPC.exe
+
+          cat << 'EOF' > dist/pkg/README.txt
+          T_Music_Bot RPC for Windows (x86_64)
+          ====================================
+
+          Installation:
+          1. Extract this archive anywhere (e.g. C:\Program Files\T_Music_Bot_RPC or your user folder).
+          2. Double-click T_Music_Bot_RPC.exe to launch.
+          3. The application runs in the background and sits in your Windows System Tray (notification area).
+          4. Double-click the tray icon to open the settings and pairing dialog.
+
+          Autostart with Windows:
+          - Create a shortcut of T_Music_Bot_RPC.exe and place it in your Startup folder:
+            Press Win+R, type "shell:startup", and paste the shortcut there.
+            (Or toggle autostart directly inside the web dashboard Settings).
+          EOF
+
+          cd dist/pkg && powershell.exe -Command "Compress-Archive -Path * -DestinationPath ../T_Music_Bot_RPC.zip -Force"
+          cd ../..
+          rm -rf dist/pkg
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform.name }}
+          name: windows-artifacts
+          path: dist/*
+
+  build-linux:
+    name: Build - Linux (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libappindicator3-dev libpulse-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+          components: clippy
+
+      - name: Clippy
+        run: cargo clippy --target x86_64-unknown-linux-gnu --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --target x86_64-unknown-linux-gnu
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Package Linux (.tar.gz)
+        shell: bash
+        run: |
+          mkdir -p dist/pkg/T_Music_Bot-RPC
+          cp target/x86_64-unknown-linux-gnu/release/t-music-bot-rpc dist/pkg/T_Music_Bot-RPC/T_Music_Bot-RPC
+          chmod +x dist/pkg/T_Music_Bot-RPC/T_Music_Bot-RPC
+          cp assets/t-music-bot-rpc.desktop dist/pkg/T_Music_Bot-RPC/
+          cp assets/icon.png dist/pkg/T_Music_Bot-RPC/
+
+          cat << 'EOF' > dist/pkg/T_Music_Bot-RPC/README.txt
+          T_Music_Bot RPC for Linux (x86_64)
+          ==================================
+
+          Runtime Dependencies:
+          - GTK 3 (libgtk-3-0)
+          - PulseAudio / PipeWire Pulse (libpulse0)
+          - OpenSSL (libssl3 or libssl1.1)
+
+          On Ubuntu / Debian:
+            sudo apt install libgtk-3-0 libpulse0 openssl
+          On Arch Linux / CachyOS / Manjaro:
+            sudo pacman -S gtk3 libpulse openssl
+          On Fedora:
+            sudo dnf install gtk3 pulseaudio-libs openssl
+
+          GNOME System Tray Note:
+          GNOME 3.26+ does not display tray icons natively. On GNOME desktops (Ubuntu / Fedora default),
+          install the "AppIndicator and KStatusNotifierItem Support" extension:
+            Ubuntu: sudo apt install gnome-shell-extension-appindicator
+            Fedora: sudo dnf install gnome-shell-extension-appindicator
+          (KDE Plasma, XFCE, Cinnamon, and MATE support system tray icons out of the box).
+
+          Desktop Integration:
+          1. Copy T_Music_Bot-RPC to ~/.local/bin/ (or /usr/local/bin/)
+          2. Copy icon.png to ~/.local/share/icons/hicolor/256x256/apps/t-music-bot-rpc.png
+          3. Copy t-music-bot-rpc.desktop to ~/.local/share/applications/
+          EOF
+
+          tar -czvf dist/T_Music_Bot-RPC.tar.gz -C dist/pkg T_Music_Bot-RPC
+          cp dist/pkg/T_Music_Bot-RPC/T_Music_Bot-RPC dist/T_Music_Bot-RPC
+          rm -rf dist/pkg
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: dist/*
+
+  build-macos:
+    name: Build - macOS (Intel & Apple Silicon)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+          components: clippy
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Build Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Build Apple Silicon (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Package macOS Bundles & DMGs
+        shell: bash
+        run: |
+          mkdir -p dist
+
+          package_mac() {
+            local arch=$1
+            local target=$2
+            local out_name=$3
+
+            local bundle="dist/${out_name}/T_Music_Bot_RPC.app"
+            mkdir -p "${bundle}/Contents/MacOS"
+            mkdir -p "${bundle}/Contents/Resources"
+
+            cp "target/${target}/release/t-music-bot-rpc" "${bundle}/Contents/MacOS/T_Music_Bot_RPC"
+            chmod +x "${bundle}/Contents/MacOS/T_Music_Bot_RPC"
+            cp assets/Info.plist "${bundle}/Contents/Info.plist"
+            cp assets/icon.icns "${bundle}/Contents/Resources/icon.icns"
+
+            # Codesign: Developer ID if present, otherwise ad-hoc
+            if [ -n "${MACOS_CERTIFICATE_NAME:-}" ]; then
+              codesign --force --options runtime --deep --sign "${MACOS_CERTIFICATE_NAME}" "${bundle}"
+            else
+              codesign --force --deep --sign - "${bundle}"
+            fi
+
+            # Create DMG
+            local dmg_dir="dist/${out_name}_dmg"
+            mkdir -p "${dmg_dir}"
+            cp -r "${bundle}" "${dmg_dir}/"
+            ln -s /Applications "${dmg_dir}/Applications"
+
+            hdiutil create -volname "T_Music_Bot_RPC" -srcfolder "${dmg_dir}" -ov -format UDZO "dist/${out_name}.dmg"
+            rm -rf "${dmg_dir}" "dist/${out_name}"
+
+            # Standalone binary for direct use / updater
+            cp "target/${target}/release/t-music-bot-rpc" "dist/${out_name}"
+            chmod +x "dist/${out_name}"
+          }
+
+          package_mac "x86_64" "x86_64-apple-darwin" "T_Music_Bot-RPC_Intel"
+          package_mac "aarch64" "aarch64-apple-darwin" "T_Music_Bot-RPC_Apple_Silicon"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
           path: dist/*
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-windows, build-linux, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

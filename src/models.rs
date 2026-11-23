@@ -62,7 +62,7 @@ fn default_element_style() -> GradientConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GradientConfig {
     #[serde(default = "default_false")]
@@ -110,7 +110,7 @@ impl Default for BackgroundConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VisualizerConfig {
     #[serde(default = "default_true")]
@@ -376,7 +376,7 @@ pub struct TrackUpdate {
 }
 
 pub enum RpcCommand {
-    Update { track: TrackUpdate, rpc_raw: Value, is_transition: bool },
+    Update { track: Box<TrackUpdate>, rpc_raw: Value, is_transition: bool },
     Connect(String),
     Refresh,
 }

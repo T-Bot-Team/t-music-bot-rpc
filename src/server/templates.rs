@@ -1,5 +1,6 @@
 use crate::models::{OverlayConfig, TrackUpdate};
 
+#[allow(clippy::too_many_arguments)]
 fn get_widget_styles(
     padding: &str,
     inner_radius: &str,
@@ -260,6 +261,7 @@ fn get_widget_styles(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn get_widget_scripts(
     track_json: &str,
     bars_val: u32,
@@ -767,8 +769,8 @@ pub fn get_html(
 ) -> String {
     let viz = &overlay.visualizer;
     let track = last_track.cloned().unwrap_or_default();
-    let track_json = serde_json::to_string(&track).unwrap();
-    let layout_mode = layout_override.unwrap_or(overlay.layout.clone());
+    let track_json = serde_json::to_string(&track).unwrap_or_else(|_| "{}".to_string());
+    let layout_mode = layout_override.unwrap_or_else(|| overlay.layout.clone());
 
     let (padding, title_size, artist_size, thumb_size, gap, show_thumb, show_viz_layout, show_progress_layout, inner_radius, widget_width, widget_height, avatar_size, avatar_offset) = match layout_mode.as_str() {
         "compact-bar" => ("20px", "2.6em", "1.8em", "160px", "30px", true, false, true, "16px", "800px", "200px", "64px", "-10px"),

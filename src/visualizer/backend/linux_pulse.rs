@@ -266,6 +266,7 @@ fn run_capture_thread(
             let result = stream.peek();
             match result {
                 Ok(PeekResult::Data(data)) => {
+                    #[allow(clippy::chunks_exact_to_as_chunks)]
                     let samples: Vec<f32> = data
                         .chunks_exact(4)
                         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))

@@ -42,8 +42,7 @@ impl VisualFilter {
         attack: f32,
         decay: f32,
     ) {
-        for i in 0..self.bars {
-            let target = targets[i];
+        for (i, target) in targets.iter().take(self.bars).copied().enumerate() {
             if target > self.audiolevel_smoothed[i] {
                 self.audiolevel_smoothed[i] += (target - self.audiolevel_smoothed[i]) * attack;
             } else {
@@ -114,7 +113,7 @@ impl VisualFilter {
                     3 => 6.0,
                     4 => 4.0,
                     5 => 3.0,
-                    6 | 7 | 8 => 2.8,
+                    6..=8 => 2.8,
                     _ => 3.0,
                 }
             } else if dist_from_right < dist_from_left {
@@ -142,7 +141,7 @@ impl VisualFilter {
                         3 => 6.0,
                         4 => 4.0,
                         5 => 3.0,
-                        6 | 7 | 8 => 2.8,
+                        6..=8 => 2.8,
                         _ => 3.0,
                     }
                 } else {

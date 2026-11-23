@@ -17,12 +17,11 @@ pub struct ServerHandle {
 pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Receiver<()>) {
     let (port, allow_firewall, tx) = {
         let s = state.read().await;
-        let settings = s.settings.as_ref().unwrap();
-        (
-            settings.overlay.port,
-            settings.allow_firewall,
-            s.overlay_tx.clone(),
-        )
+        let (port, allow_firewall) = match &s.settings {
+            Some(settings) => (settings.overlay.port, settings.allow_firewall),
+            None => (3000, false),
+        };
+        (port, allow_firewall, s.overlay_tx.clone())
     };
 
     let server_handle = Arc::new(ServerHandle { tx });
@@ -55,13 +54,15 @@ pub async fn start_server(state: AppState, shutdown_rx: tokio::sync::oneshot::Re
     match tokio::net::TcpListener::bind(&addr).await {
         Ok(listener) => {
             info!("[Server] Overlay active on http://{}", addr);
-            axum::serve(listener, app)
+            if let Err(e) = axum::serve(listener, app)
                 .with_graceful_shutdown(async move {
                     let _ = shutdown_rx.await;
                     info!("[Server] Shutting down listener on port {}...", port);
                 })
                 .await
-                .unwrap();
+            {
+                info!("[Server] Server stopped with error: {}", e);
+            }
         }
         Err(e) => {
             let err_msg = format!("CRITICAL: Permission Denied or Port {} is already in use.\n\nError: {}\n\nPlease change the port in settings.json or close the conflicting application.", port, e);
@@ -75,7 +76,7 @@ async fn asset_handler(
     axum::extract::Path(path): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     let clean_path = path.trim_start_matches('/');
-    let mime = match clean_path.split('.').last() {
+    let mime = match clean_path.split('.').next_back() {
         Some("png") => "image/png",
         Some("ico") => "image/x-icon",
         Some("woff2") => "font/woff2",

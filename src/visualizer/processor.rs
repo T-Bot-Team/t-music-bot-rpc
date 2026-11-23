@@ -26,7 +26,7 @@ pub fn run_processor(
     
     // Temporal coefficients — derived from smoothing preset
     let smooth_val = (config.smoothing as f32).max(0.1);
-    let target_fps = config.fps.max(15).min(240) as f32;
+    let target_fps = (config.fps as f32).clamp(15.0, 240.0);
     
     // Exact Rainmeter k-constant formula: k = 0.01 ^ (1 / (FPS * TimeInSeconds))
     let calc_alpha = |ms: f32| -> f32 {
@@ -35,7 +35,7 @@ pub fn run_processor(
         1.0 - k
     };
 
-    let smooth_clamped = smooth_val.max(0.0).min(40.0);
+    let smooth_clamped = smooth_val.clamp(0.0, 40.0);
     let attack_ms = smooth_clamped * 2.5;
     let decay_ms = 50.0 + smooth_clamped * 18.75;
     let alpha_ms = smooth_clamped * 4.0;
@@ -62,8 +62,8 @@ pub fn run_processor(
             staging_buffer.drain(0..excess);
         }
 
-        if last_frame_time.elapsed() >= frame_duration {
-            if staging_buffer.len() >= target_len {
+        if last_frame_time.elapsed() >= frame_duration
+            && staging_buffer.len() >= target_len {
                 let current_samples = &staging_buffer[0..target_len];
 
                 let mut max_amp = 0.0f32;
@@ -104,6 +104,5 @@ pub fn run_processor(
 
                 let _ = tx_proc.send(serde_json::json!({ "type": "fft_data", "bins": final_bins }).to_string());
             }
-        }
     }
 }

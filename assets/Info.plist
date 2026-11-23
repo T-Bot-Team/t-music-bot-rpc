@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>xyz.tehcraft.tmusicbotrpc</string>
+    <key>CFBundleName</key>
+    <string>T_Music_Bot_RPC</string>
+    <key>CFBundleDisplayName</key>
+    <string>T_Music_Bot RPC</string>
+    <key>CFBundleVersion</key>
+    <string>2.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>T_Music_Bot_RPC</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+</dict>
+</plist>

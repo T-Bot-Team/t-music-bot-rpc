@@ -1,10 +1,18 @@
 # T_Music_Bot RPC (Rust)
 
-A Discord Rich Presence client and OBS overlay for **T_Music_Bot**. Written in Rust, one codebase for Windows, macOS and Linux, and it stays in your system tray once it's paired. The idea is simple: something you can leave running all day without ever noticing it's there.
+A Discord Rich Presence client and OBS overlay for **T_Music_Bot**. Written in native Rust, one codebase for Windows, macOS and Linux, and it stays in your system tray once it's paired. The idea is simple: something you can leave running all day without ever noticing it's there.
 
 ---
 
-## Layout modes & visualizer
+## Performance & Resource Footprint
+
+Measured on Linux (AMD Ryzen 5600G / CachyOS) and Windows 11:
+- **Idle CPU:** `< 0.2%` (strict target `< 1.0%`). Capture suspends automatically when idle or unlistened.
+- **Memory (RSS):** Flat `~40 MB` across runs. No leaks, zero garbage collection pauses.
+
+---
+
+## Layout Modes & Visualizer
 
 Everything is configured from the web dashboard at `http://localhost:3000/settings` — double-click the tray icon to open it. The overlay OBS captures has three layouts:
 
@@ -12,9 +20,9 @@ Everything is configured from the web dashboard at `http://localhost:3000/settin
 - **Compact bar** — track info side-by-side with the spectrum bars. Sits nicely on the top or bottom edge of a frame.
 - **Compact minimal** — a small card with the avatar and track name. Fits in a corner without eating screen space.
 
-### Spectrum engine
+### Spectrum Engine
 
-The visualizer captures desktop audio through CPAL — WASAPI loopback on Windows, PulseAudio/PipeWire on Linux, CoreAudio on macOS — so it sees whatever your system is already playing, virtual cables like VB-Cable or Voicemeeter included.
+The visualizer captures desktop audio through CPAL native loopbacks — WASAPI loopback on Windows, PulseAudio/PipeWire on Linux, CoreAudio on macOS — so it sees whatever your system is already playing, virtual cables like VB-Cable or Voicemeeter included.
 
 - Bands can be spaced logarithmically (matches how ears hear, more resolution down in the bass) or linearly (even spread across the whole range).
 - Capture suspends itself when no overlay is listening or nothing is playing, so idle cost is basically nothing.
@@ -26,22 +34,64 @@ Take the palette straight from the album cover and the text, bars and borders al
 
 ---
 
-## Guides & documentation
+## Installation & Getting Started
 
-The wiki covers everything that reads better as a walkthrough:
+Download the package for your operating system from the [Releases](https://github.com/T-Bot-Team/t-music-bot-rpc/releases) page:
 
-* 🔌 **[Audio Isolation & Routing Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Audio-Isolation-&-Routing-Guide)** — keeping games, voice chat and system sounds out of the visualizer using VB-Cable, Voicemeeter, or PipeWire/CoreAudio.
-* 🖥️ **[OBS Studio Integration Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/OBS-Studio-Integration-Tour)** — browser source setup, viewport scaling, transparency filters, performance settings.
-* 🎛️ **[Dashboard Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Dashboard-Tour)** — what every setting in the control panel actually does.
-* ⚡ **[Performance Benchmarks](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Performance-Benchmarks)** — CPU/RAM numbers for this Rust build against the old TypeScript client.
-* 🛠️ **[Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide)** — building from source, with a walkthrough of the codebase.
-* 🤝 **[Contributing Guidelines](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Contributing-Guidelines)** — workflow, code expectations, how to send a PR.
+### Windows (64-bit)
+1. Download **`T_Music_Bot_RPC.zip`**.
+2. Extract the folder to your preferred directory (e.g. `C:\Program Files\T_Music_Bot_RPC` or `%LOCALAPPDATA%`).
+3. Run `T_Music_Bot_RPC.exe`.
+4. The client runs in the background and appears in your System Tray notification area.
+5. **Autostart:** To run on boot, place a shortcut of `T_Music_Bot_RPC.exe` in `shell:startup` (Press `Win + R` -> type `shell:startup` -> Paste shortcut) or enable it from the web dashboard.
+
+### macOS (Apple Silicon & Intel)
+1. Download the `.dmg` matching your Mac processor:
+   - **Apple Silicon (M1 / M2 / M3 / M4):** **`T_Music_Bot-RPC_Apple_Silicon.dmg`**
+   - **Intel Core:** **`T_Music_Bot-RPC_Intel.dmg`**
+2. Open the DMG and drag `T_Music_Bot_RPC.app` into your `Applications` folder.
+3. The app is packaged as a tray-only agent (`LSUIElement`), sitting in your macOS menu bar without taking up space in the Dock.
+4. **Gatekeeper (Unsigned / Ad-hoc builds):**
+   If macOS shows *"App cannot be opened because Apple cannot check it for malicious software"*:
+   - Right-click (or Control-click) `T_Music_Bot_RPC.app` in Finder, choose **Open**, and click **Open** in the dialog.
+   - Or open Terminal and run: `xattr -cr /Applications/T_Music_Bot_RPC.app`
+5. *Why not a universal binary?* Standalone binaries keep the download lean (~15 MB) instead of doubling download size (~35 MB) for everyone with dead architecture code.
+
+### Linux (x86_64)
+1. Download **`T_Music_Bot-RPC.tar.gz`**.
+2. **Runtime Dependencies:** Ensure the following system libraries are installed:
+   - **Ubuntu / Debian:** `sudo apt install libgtk-3-0 libpulse0 openssl`
+   - **Arch Linux / CachyOS / Manjaro:** `sudo pacman -S gtk3 libpulse openssl`
+   - **Fedora:** `sudo dnf install gtk3 pulseaudio-libs openssl`
+3. **GNOME Desktop System Tray Note:**
+   Modern GNOME (3.26+) does not display tray icons by default. If running GNOME (default on Ubuntu / Fedora), install the **AppIndicator and KStatusNotifierItem Support** extension:
+   ```bash
+   # Ubuntu / Debian
+   sudo apt install gnome-shell-extension-appindicator
+   # Fedora
+   sudo dnf install gnome-shell-extension-appindicator
+   ```
+   *(KDE Plasma, XFCE, Cinnamon, and MATE display the tray icon out of the box).*
+4. **Desktop Integration:**
+   Extract and install the binary and launcher:
+   ```bash
+   tar -xzf T_Music_Bot-RPC.tar.gz
+   cd T_Music_Bot-RPC
+   cp T_Music_Bot-RPC ~/.local/bin/
+   cp icon.png ~/.local/share/icons/hicolor/256x256/apps/t-music-bot-rpc.png
+   cp t-music-bot-rpc.desktop ~/.local/share/applications/
+   ```
 
 ---
 
-## Configuration settings
+## Configuration Settings
 
-Settings live in a `settings.json` file: `%APPDATA%/T_Music_Bot_RPC` on Windows, `~/Library/Application Support/T_Music_Bot_RPC` on macOS, `~/.config/t-music-bot-rpc` on Linux. Open it straight from the **Open settings.json** button on the dashboard, or use the sliders — both write to the same file.
+Settings live in `settings.json`:
+- **Windows:** `%APPDATA%\T_Music_Bot_RPC\settings.json`
+- **macOS:** `~/Library/Application Support/T_Music_Bot_RPC/settings.json`
+- **Linux:** `~/.config/t-music-bot-rpc/settings.json`
+
+Open it straight from the **Open settings.json** button on the dashboard (`http://localhost:3000/settings`), or use the sliders — both write to the same file.
 
 | Section | Key | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -62,19 +112,14 @@ Settings live in a `settings.json` file: `%APPDATA%/T_Music_Bot_RPC` on Windows,
 
 ---
 
-## Getting started
+## Guides & Documentation
 
-1. Download the binary for your OS from the **Releases** page:
-   * **Windows (64-bit):** `T_Music_Bot_RPC.exe`
-   * **Linux (x86_64):** `T_Music_Bot-RPC`
-   * **macOS (Intel):** `T_Music_Bot-RPC_Intel`
-   * **macOS (Apple Silicon):** `T_Music_Bot-RPC_Apple_Silicon`
-2. Run it.
-3. On Discord, type `/rpc connect` to get a pairing code.
-4. Enter the code in the setup dialog. From then on the client sits quietly in the system tray.
-5. Double-click the tray icon whenever you want the dashboard back.
-
-Building from source instead? Head to the [Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide).
+* 🔌 **[Audio Isolation & Routing Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Audio-Isolation-&-Routing-Guide)** — keeping games, voice chat and system sounds out of the visualizer using VB-Cable, Voicemeeter, or PipeWire/CoreAudio.
+* 🖥️ **[OBS Studio Integration Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/OBS-Studio-Integration-Tour)** — browser source setup, viewport scaling, transparency filters, performance settings.
+* 🎛️ **[Dashboard Tour](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Dashboard-Tour)** — what every setting in the control panel actually does.
+* ⚡ **[Performance Benchmarks](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Performance-Benchmarks)** — CPU/RAM numbers for this Rust build against the old TypeScript client.
+* 🛠️ **[Compiling Guide](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Compiling-Guide)** — building from source, with a walkthrough of the codebase.
+* 🤝 **[Contributing Guidelines](https://github.com/T-Bot-Team/t-music-bot-rpc/wiki/Contributing-Guidelines)** — workflow, code expectations, how to send a PR.
 
 ---
 

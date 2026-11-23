@@ -28,7 +28,7 @@ pub async fn authenticate(ws_tx: mpsc::Sender<Message>, state: AppState, _client
 
         if code.len() == 6 {
             let auth_msg = json!({ "type": "authenticate", "userId": uid, "code": code, "version": APP_VERSION });
-            if ws_tx.send(Message::Text(auth_msg.to_string().into())).await.is_err() { break; }
+            if ws_tx.send(Message::Text(auth_msg.to_string())).await.is_err() { break; }
             info!("[Auth] Authenticating with Pairing Code. Linking to Discord User: {}", uid);
             break;
         }
@@ -36,7 +36,7 @@ pub async fn authenticate(ws_tx: mpsc::Sender<Message>, state: AppState, _client
         if let Some(t) = token {
             if !t.is_empty() {
                 let auth_msg = json!({ "type": "authenticate", "userId": uid, "token": t, "version": APP_VERSION });
-                if ws_tx.send(Message::Text(auth_msg.to_string().into())).await.is_err() { break; }
+                if ws_tx.send(Message::Text(auth_msg.to_string())).await.is_err() { break; }
                 info!("[Auth] Authenticating with secure Session Token...");
                 break;
             }

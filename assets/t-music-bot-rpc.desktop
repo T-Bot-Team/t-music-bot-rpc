@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=T_Music_Bot RPC
+Comment=Discord Rich Presence & OBS Overlay Client for T_Music_Bot
+Exec=T_Music_Bot-RPC
+Icon=t-music-bot-rpc
+Terminal=false
+Categories=AudioVideo;Audio;Network;
+StartupNotify=false

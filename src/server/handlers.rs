@@ -17,7 +17,8 @@ pub async fn overlay_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let s = state.read().await;
-    let settings = s.settings.as_ref().unwrap();
+    let fallback = crate::models::Settings::default();
+    let settings = s.settings.as_ref().unwrap_or(&fallback);
     let layout_override = params.get("layout").cloned();
     let html = get_html(
         &settings.overlay,
@@ -39,7 +40,8 @@ pub async fn settings_gui_handler(
     State((state, _)): State<(AppState, Arc<ServerHandle>)>,
 ) -> impl IntoResponse {
     let s = state.read().await;
-    let settings = s.settings.as_ref().unwrap();
+    let fallback = crate::models::Settings::default();
+    let settings = s.settings.as_ref().unwrap_or(&fallback);
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
 
@@ -67,7 +69,8 @@ pub async fn setup_gui_handler(
     State((state, _)): State<(AppState, Arc<ServerHandle>)>,
 ) -> impl IntoResponse {
     let s = state.read().await;
-    let settings = s.settings.as_ref().unwrap();
+    let fallback = crate::models::Settings::default();
+    let settings = s.settings.as_ref().unwrap_or(&fallback);
     let code = settings.code.clone().unwrap_or_default();
     let has_token = settings.session_token.as_ref().map(|t| !t.is_empty()).unwrap_or(false);
 
@@ -98,7 +101,7 @@ pub async fn rpc_sync_handler(
     if let (Some(tx), Some(track), Some(rpc_raw)) = (&s.rpc_tx, &s.last_track, &s.last_rpc_raw) {
         info!("[Server] Manual RPC Sync triggered");
         let _ = tx.send(crate::RpcCommand::Update { 
-            track: track.clone(), 
+            track: Box::new(track.clone()), 
             rpc_raw: rpc_raw.clone(),
             is_transition: true 
         });
@@ -165,17 +168,17 @@ pub async fn update_settings_handler(
 
     // 1. Get current settings as JSON Value
     let mut current_settings_json = match &s.settings {
-        Some(set) => serde_json::to_value(set).unwrap(),
+        Some(set) => serde_json::to_value(set).unwrap_or_default(),
         None => return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Settings not initialized").into_response(),
     };
     let original_settings_json = current_settings_json.clone();
 
     // 2. Extract potential actions and inner settings payload
-    let actual_payload = if payload.get("settings").is_some() {
+    let actual_payload = if let Some(settings_val) = payload.get("settings") {
         if let Some(actions) = payload.get("actions") {
             if actions.get("allow_firewall").and_then(|v| v.as_bool()).unwrap_or(false) {
-                let port = payload.get("settings")
-                    .and_then(|s| s.get("overlay"))
+                let port = settings_val
+                    .get("overlay")
                     .and_then(|o| o.get("port"))
                     .and_then(|p| p.as_u64())
                     .unwrap_or(3000) as u16;
@@ -188,7 +191,7 @@ pub async fn update_settings_handler(
                 crate::utils::create_start_menu_shortcut();
             }
         }
-        payload.get("settings").unwrap()
+        settings_val
     } else {
         &payload
     };
@@ -266,21 +269,21 @@ pub async fn handle_socket(mut socket: WebSocket, state: AppState, _handle: Arc<
     {
         let s = state.read().await;
         let track = s.last_track.clone().unwrap_or_default();
-        let _ = socket.send(Message::Text(json!({ "type": "track_update", "data": track }).to_string().into())).await;
+        let _ = socket.send(Message::Text(json!({ "type": "track_update", "data": track }).to_string())).await;
     }
     
     loop {
         tokio::select! {
             res = track_rx.recv() => {
                 match res {
-                    Ok(msg) => { if socket.send(Message::Text(msg.into())).await.is_err() { break; } }
+                    Ok(msg) => { if socket.send(Message::Text(msg)).await.is_err() { break; } }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
             }
             res = viz_rx.recv() => {
                 match res {
-                    Ok(msg) => { if socket.send(Message::Text(msg.into())).await.is_err() { break; } }
+                    Ok(msg) => { if socket.send(Message::Text(msg)).await.is_err() { break; } }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

@@ -17,7 +17,11 @@ const WS_URL_B64: &str = "d3NzOi8vcnBjLnRlaGNyYWZ0Lnh5ei93cw==";
 pub use ipc::scan_discord_clients;
 
 pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCommand>) {
-    let ws_url = String::from_utf8(general_purpose::STANDARD.decode(WS_URL_B64).unwrap()).unwrap();
+    let ws_url = general_purpose::STANDARD
+        .decode(WS_URL_B64)
+        .ok()
+        .and_then(|b| String::from_utf8(b).ok())
+        .unwrap_or_else(|| "wss://rpc.tehcraft.xyz/ws".to_string());
     
     let state_worker = state.clone();
     std::thread::spawn(move || { run_discord_worker(state_worker, rpc_rx); });
@@ -56,10 +60,21 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
             s.last_track = None;
         }
         
-        let mut request = ws_url.clone().into_client_request().unwrap();
+        let mut request = match ws_url.clone().into_client_request() {
+            Ok(req) => req,
+            Err(e) => {
+                info!("[WS] Bad URL request: {}. Retrying in 5s...", e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
         let headers = request.headers_mut();
-        headers.insert("User-Agent", format!("T_Music_Bot-RPC/{} ({})", APP_VERSION, if cfg!(windows) { "win32" } else { "linux" }).parse().unwrap());
-        headers.insert("Origin", "https://rpc.tehcraft.xyz".parse().unwrap());
+        if let Ok(ua) = format!("T_Music_Bot-RPC/{} ({})", APP_VERSION, if cfg!(windows) { "win32" } else { "linux" }).parse() {
+            headers.insert("User-Agent", ua);
+        }
+        if let Ok(origin) = "https://rpc.tehcraft.xyz".parse() {
+            headers.insert("Origin", origin);
+        }
 
         match connect_async(request).await {
             Ok((mut ws_stream, _)) => {
@@ -67,7 +82,7 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                 { let mut s = state.write().await; s.ws_status = "Connected".to_string(); }
                 
                 let (msg_tx, mut msg_rx) = mpsc::channel::<Message>(128);
-                let _ = ws_stream.send(Message::Text(json!({"type": "connect"}).to_string().into())).await;
+                let _ = ws_stream.send(Message::Text(json!({"type": "connect"}).to_string())).await;
                 
                 let mut settings_rx = state.read().await.overlay_tx.subscribe();
 
@@ -81,8 +96,8 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                         if hb_state.read().await.is_shutting_down { break; }
                         
                         if last_activity.elapsed() >= Duration::from_secs(90) {
-                            let ping = json!({ "type": "ping", "time": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() });
-                            if hb_tx.send(Message::Text(ping.to_string().into())).await.is_err() { break; }
+                            let ping = json!({ "type": "ping", "time": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() });
+                            if hb_tx.send(Message::Text(ping.to_string())).await.is_err() { break; }
                             last_activity = Instant::now();
                         }
                     }
@@ -129,7 +144,7 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                                 Some(Ok(Message::Text(text))) => {
                                     if let Ok(m) = serde_json::from_str::<Value>(&text) {
                                         match m["type"].as_str() {
-                                            Some("ping") => { let _ = msg_tx.send(Message::Text(json!({"type": "pong", "time": m["time"]}).to_string().into())).await; }
+                                            Some("ping") => { let _ = msg_tx.send(Message::Text(json!({"type": "pong", "time": m["time"]}).to_string())).await; }
                                             Some("connect") => {
                                                 let cid = m["clientId"].as_str().unwrap_or("").to_string();
                                                 let rpc_tx = state.read().await.rpc_tx.clone();
@@ -174,7 +189,7 @@ pub async fn start_rpc_handler(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCo
                                                             s.settings.as_ref().and_then(|st| st.user_id.clone())
                                                         };
                                                         if let Some(uid) = uid {
-                                                            let _ = tx_clone.send(Message::Text(json!({ "type": "request_update", "userId": uid }).to_string().into())).await;
+                                                            let _ = tx_clone.send(Message::Text(json!({ "type": "request_update", "userId": uid }).to_string())).await;
                                                             break;
                                                         }
                                                         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -250,7 +265,7 @@ fn run_discord_worker(state: AppState, rpc_rx: std_mpsc::Receiver<RpcCommand>) {
                     }
                 }
                 RpcCommand::Update { track, rpc_raw, is_transition } => {
-                    queued = Some((track, rpc_raw, is_transition));
+                    queued = Some((*track, rpc_raw, is_transition));
                 }
                 RpcCommand::Refresh => {
                     sync_pending = true;

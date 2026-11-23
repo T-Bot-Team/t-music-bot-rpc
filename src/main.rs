@@ -65,8 +65,10 @@ fn main() {
         loop {
             let (port, allow_firewall) = {
                 let s = s_srv.read().await;
-                let settings = s.settings.as_ref().unwrap();
-                (settings.overlay.port, settings.allow_firewall)
+                match &s.settings {
+                    Some(settings) => (settings.overlay.port, settings.allow_firewall),
+                    None => (3000, false),
+                }
             };
 
             let s_inst = s_srv.clone();
@@ -87,8 +89,10 @@ fn main() {
                                 if m.contains("settings_update") {
                                     let (new_port, new_allow_firewall) = {
                                         let s = s_srv.read().await;
-                                        let settings = s.settings.as_ref().unwrap();
-                                        (settings.overlay.port, settings.allow_firewall)
+                                        match &s.settings {
+                                            Some(settings) => (settings.overlay.port, settings.allow_firewall),
+                                            None => (current_port, current_allow_firewall),
+                                        }
                                     };
                                     if new_port != current_port || new_allow_firewall != current_allow_firewall {
                                         info!("[Server] Settings change detected (Port: {} -> {}, LAN: {} -> {}). Restarting...", current_port, new_port, current_allow_firewall, new_allow_firewall);
@@ -103,7 +107,17 @@ fn main() {
                         }
                     }
                     _ = &mut server_task => {
-                        info!("[Server] Stopped unexpectedly.");
+                        info!("[Server] Stopped unexpectedly. Backing off before retry...");
+                        tokio::select! {
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {},
+                            res = srv_restart_rx.recv() => {
+                                if let Ok(m) = res {
+                                    if m.contains("settings_update") {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         break;
                     }
                 }
@@ -150,7 +164,7 @@ fn main() {
         loop {
             let config = {
                 let s = s3.read().await;
-                s.settings.as_ref().unwrap().overlay.visualizer.clone()
+                s.settings.as_ref().map(|st| st.overlay.visualizer.clone()).unwrap_or_default()
             };
 
             if config.enabled {
@@ -165,11 +179,11 @@ fn main() {
                             if msg.contains("settings_update") {
                                 let new_config = {
                                     let s = s3.read().await;
-                                    s.settings.as_ref().unwrap().overlay.visualizer.clone()
+                                    s.settings.as_ref().map(|st| st.overlay.visualizer.clone()).unwrap_or_default()
                                 };
 
                                 // 🚀 SELECTIVE RESTART: Only restart if a Visualizer setting actually changed
-                                if serde_json::to_string(&new_config).unwrap() != serde_json::to_string(&current_config).unwrap() {
+                                if new_config != current_config {
                                     info!("[Visualizer] Visualizer settings updated. Re-initializing...");
                                     if let Some(h) = abort_handle { h.abort(); let _ = h.await; }
                                     break;
@@ -188,23 +202,26 @@ fn main() {
 
     let shutdown_state = state.clone();
     let shutdown_tx = overlay_tx.clone();
-    ctrlc::set_handler(move || {
+    if let Err(e) = ctrlc::set_handler(move || {
         let s_state = shutdown_state.clone();
         let s_tx = shutdown_tx.clone();
         std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_multi_thread()
+            if let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(1)
                 .enable_all()
                 .build()
-                .unwrap();
-            rt.block_on(async {
-                { let mut s = s_state.write().await; s.is_shutting_down = true; }
-                let _ = s_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
-            });
+            {
+                rt.block_on(async {
+                    { let mut s = s_state.write().await; s.is_shutting_down = true; }
+                    let _ = s_tx.send(serde_json::json!({ "type": "program_shutdown" }).to_string());
+                });
+            }
             std::thread::sleep(std::time::Duration::from_millis(500));
             std::process::exit(0);
         });
-    }).expect("Error setting Ctrl-C handler");
+    }) {
+        info!("[UI] Could not set Ctrl-C handler: {}", e);
+    }
 
     #[cfg(target_os = "linux")]
     if let Err(e) = gtk::init() {

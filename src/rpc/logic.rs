@@ -74,7 +74,7 @@ pub async fn apply_new_state(state: &AppState, mut track: TrackUpdate, _is_trans
     };
 
     if let Some(tx) = rpc_tx {
-        let _ = tx.send(RpcCommand::Update { track, rpc_raw: final_rpc, is_transition });
+        let _ = tx.send(RpcCommand::Update { track: Box::new(track), rpc_raw: final_rpc, is_transition });
     }
 }
 
@@ -117,10 +117,8 @@ pub fn update_discord_activity_raw(client: &mut IpcClient, rpc_raw: &Value, stat
                 rpc_raw.get("statusDisplayType").and_then(|v| {
                     if let Some(s) = v.as_str() {
                         Some(s == "DETAILS" || s == "0")
-                    } else if let Some(n) = v.as_i64() {
-                        Some(n == 0) // Assuming 0 is DETAILS
                     } else {
-                        None
+                        v.as_i64().map(|n| n == 0)
                     }
                 })
             })
@@ -191,7 +189,7 @@ pub fn update_discord_activity_raw(client: &mut IpcClient, rpc_raw: &Value, stat
     }
 
     #[cfg(debug_assertions)]
-    info!("[RPC] Sending: {}", serde_json::to_string(&activity).unwrap());
+    info!("[RPC] Sending: {}", serde_json::to_string(&activity).unwrap_or_default());
 
     let payload = json!({
         "cmd": "SET_ACTIVITY",

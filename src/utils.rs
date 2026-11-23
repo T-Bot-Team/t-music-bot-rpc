@@ -59,7 +59,7 @@ pub fn log_message(msg: &str) {
     let log_line = format!("[{}] {}\n", timestamp, msg);
     print!("{}", log_line);
     
-    let _lock = LOG_MUTEX.lock().unwrap();
+    let _lock = LOG_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -109,23 +109,26 @@ pub fn get_pairing_code() -> String {
     use std::os::windows::process::CommandExt;
     let output = Command::new("powershell")
         .creation_flags(0x08000000) // CREATE_NO_WINDOW
-        .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
-        .output()
-        .expect("Failed to execute PowerShell");
-    String::from_utf8_lossy(&output.stdout).trim().to_string()
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+        .output();
+    match output {
+        Ok(out) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        Err(_) => "CANCELLED".to_string(),
+    }
 }
 
 #[cfg(not(windows))]
 pub fn get_pairing_code() -> String {
     let title = "T_Music_Bot RPC Setup";
-    let output = Command::new("zenity").args(&["--entry", "--title", title, "--text", "Paste Pairing Code:"]).output().unwrap_or_else(|_| {
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).ok();
-        let mut res = Command::new("echo").output().unwrap(); 
-        res.stdout = input.into_bytes();
-        res
-    });
-    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let output = Command::new("zenity").args(["--entry", "--title", title, "--text", "Paste Pairing Code:"]).output();
+    let result = match output {
+        Ok(out) => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        Err(_) => {
+            let mut input = String::new();
+            let _ = std::io::stdin().read_line(&mut input);
+            input.trim().to_string()
+        }
+    };
     if result.is_empty() { "CANCELLED".to_string() } else { result }
 }
 
@@ -140,18 +143,18 @@ pub fn show_error_popup(msg: &str) {
             use std::os::windows::process::CommandExt;
             let _ = Command::new("powershell")
                 .creation_flags(0x08000000)
-                .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+                .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
                 .output();
         }
         #[cfg(not(windows))]
         {
-            let _ = Command::new("powershell").args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]).output();
+            let _ = Command::new("powershell").args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]).output();
         }
     } else if cfg!(target_os = "macos") {
         let script = format!("display dialog \"{}\" buttons {{\"OK\"}} default button \"OK\" with title \"T_Music_Bot RPC\"", msg.replace("\"", "\\\""));
-        let _ = Command::new("osascript").args(&["-e", &script]).output();
+        let _ = Command::new("osascript").args(["-e", &script]).output();
     } else {
-        let _ = Command::new("zenity").args(&["--info", "--title", "T_Music_Bot RPC", "--text", msg]).output();
+        let _ = Command::new("zenity").args(["--info", "--title", "T_Music_Bot RPC", "--text", msg]).output();
     }
 }
 
@@ -214,9 +217,23 @@ pub fn check_for_updates() {
                 if !latest_ver.is_empty() && is_newer_release(latest_ver, current_ver) {
                     log_message(&format!("[Updater] Update found: v{} (Current: v{}).", latest_ver, current_ver));
                     
-                    let platform_name = if cfg!(windows) { "T_Music_Bot_RPC.exe" } else { "T_Music_Bot-RPC" };
+                    let platform_name = if cfg!(windows) {
+                        "T_Music_Bot_RPC.exe"
+                    } else if cfg!(target_os = "macos") {
+                        if cfg!(target_arch = "aarch64") {
+                            "T_Music_Bot-RPC_Apple_Silicon"
+                        } else {
+                            "T_Music_Bot-RPC_Intel"
+                        }
+                    } else {
+                        "T_Music_Bot-RPC"
+                    };
+
                     let asset = json["assets"].as_array().and_then(|a| {
-                        a.iter().find(|&asst| asst["name"].as_str().unwrap_or("").contains(platform_name))
+                        a.iter().find(|&asst| {
+                            let name = asst["name"].as_str().unwrap_or("");
+                            name == platform_name || (name.contains(platform_name) && !name.ends_with(".zip") && !name.ends_with(".tar.gz") && !name.ends_with(".dmg"))
+                        })
                     });
 
                     if let Some(asset) = asset {
@@ -225,9 +242,28 @@ pub fn check_for_updates() {
                             log_message("[Updater] Downloading new binary...");
                             if let Ok(bin_resp) = minreq::get(download_url).with_header("User-Agent", "T_Music_Bot-RPC").send() {
                                 let bytes = bin_resp.as_bytes();
-                                let tmp_path = std::env::temp_dir().join("t_music_bot_rpc_new");
-                                if std::fs::write(&tmp_path, bytes).is_ok() {
-                                    log_message("[Updater] Download complete. Restart to apply update.");
+                                if bin_resp.status_code == 200 && !bytes.is_empty() {
+                                    let tmp_path = std::env::temp_dir().join(format!("t_music_bot_rpc_update_{}", std::process::id()));
+                                    if std::fs::write(&tmp_path, bytes).is_ok() {
+                                        #[cfg(unix)]
+                                        {
+                                            use std::os::unix::fs::PermissionsExt;
+                                            let _ = std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o755));
+                                        }
+
+                                        match self_replace::self_replace(&tmp_path) {
+                                            Ok(_) => {
+                                                let _ = std::fs::remove_file(&tmp_path);
+                                                log_message("[Updater] Download complete and verified. Restart to apply update.");
+                                            }
+                                            Err(e) => {
+                                                let _ = std::fs::remove_file(&tmp_path);
+                                                log_message(&format!("[Updater] Failed to apply update: {}. Keeping current binary.", e));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    log_message(&format!("[Updater] Download failed with status {}. Keeping current binary.", bin_resp.status_code));
                                 }
                             }
                         }
