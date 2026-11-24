@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-11-24
+
+### Tray & Audio Capture
+- **Active Device Display**: Added a dedicated status item (`Audio: <Device Name>`) directly visible in the tray menu that updates dynamically whenever the device changes.
+- **Unmistakable Selection Indicator**: Added visual `✓  ` checkmark prefix directly into the tray menu item text, guaranteeing immediate visibility across all desktop environments (GNOME AppIndicator, KDE, XFCE, Windows, macOS).
+- **Desktop/Playback Exclusivity**: Filtered out all microphone and recording devices from the visualizer capture list, listing only desktop audio monitors and playback loopback sinks.
+- **Tray Exclusivity**: Dedicated audio device selection exclusively to the system tray menu, removing redundant selectors from the web dashboard.
+
+### Audio Bus & Settings
+- **Cross-Platform Availability**: Made "Music Volume (What You Hear)" available across all platforms (Linux, Windows, macOS) with robust state synchronization.
+- **Settings UI Polish**: Cleaned up obsolete toggles, enhanced custom select dropdowns with optgroups, keyboard accessibility (`:focus-visible`), and styled scrollbars.
+- **Overlay Refinements**: Added system font fallbacks, bounds clamping, and dynamic color accent border support.
+
 ## [2.1.0] - 2026-11-23
 
 ### Packaging

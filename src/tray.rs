@@ -13,8 +13,8 @@ struct MenuHandles {
     ws_item: MenuItem,
     rpc_item: MenuItem,
     audio_item: MenuItem,
-    /// (checked item, stable device id) for every selectable audio device.
-    device_items: Vec<(CheckMenuItem, String)>,
+    /// (checked item, stable device id, base label) for every selectable audio device.
+    device_items: Vec<(CheckMenuItem, String, String)>,
     quit_id: tray_icon::menu::MenuId,
     logs_id: tray_icon::menu::MenuId,
     settings_id: tray_icon::menu::MenuId,
@@ -104,7 +104,11 @@ impl Tray {
     fn create_inner(state: &AppState, own_launch: bool) -> Result<Tray, String> {
         ensure_appkit(own_launch);
 
-        let devices = crate::visualizer::backend::list_devices();
+        // Visualizer only captures desktop audio / playback devices. Never microphones.
+        let devices: Vec<crate::visualizer::backend::DeviceInfo> = crate::visualizer::backend::list_devices()
+            .into_iter()
+            .filter(|d| d.kind.is_playback())
+            .collect();
         let (handles, current_audio) = build_menu(state, &devices);
         let _icon = TrayIconBuilder::new()
             .with_menu(Box::new(handles.menu.clone()))
@@ -162,21 +166,7 @@ impl Tray {
         if audio_dev != self.last_audio {
             let label = device_display_name(&audio_dev, &self.devices);
             self.handles.audio_item.set_text(format!("Audio: {}", label));
-            let want_default = crate::visualizer::backend::is_default_request(&audio_dev);
-            for (item, dev_id) in &self.handles.device_items {
-                if dev_id == "default" {
-                    item.set_checked(want_default);
-                } else {
-                    item.set_checked(
-                        !want_default
-                            && (dev_id == &audio_dev
-                                || self
-                                    .devices
-                                    .iter()
-                                    .any(|d| &d.id == dev_id && matches_current(d, &audio_dev))),
-                    );
-                }
-            }
+            update_device_items(&self.handles.device_items, &audio_dev, &self.devices);
             self.last_audio = audio_dev;
         }
     }
@@ -223,18 +213,11 @@ impl Tray {
             .handles
             .device_items
             .iter()
-            .find(|(item, _)| *item.id() == *id)
-            .map(|(_, dev_id)| dev_id.clone());
+            .find(|(item, _, _)| *item.id() == *id)
+            .map(|(_, dev_id, _)| dev_id.clone());
 
         if let Some(device_id) = selected {
-            let want_default = crate::visualizer::backend::is_default_request(&device_id);
-            for (item, dev_id) in &self.handles.device_items {
-                if dev_id == "default" {
-                    item.set_checked(want_default);
-                } else {
-                    item.set_checked(!want_default && *dev_id == device_id);
-                }
-            }
+            update_device_items(&self.handles.device_items, &device_id, &self.devices);
 
             let mut s = state.blocking_write();
             if let Some(st) = s.settings.as_mut() {
@@ -251,6 +234,38 @@ impl Tray {
             self.handles.audio_item.set_text(format!("Audio: {}", label));
             self.last_audio = device_id;
         }
+    }
+}
+
+/// Prepends a visible checkmark so the selected item is unmistakable across
+/// all desktop environments (GNOME AppIndicator, KDE, Windows, macOS).
+fn format_item_text(base_label: &str, is_selected: bool) -> String {
+    if is_selected {
+        format!("✓  {}", base_label)
+    } else {
+        format!("    {}", base_label)
+    }
+}
+
+/// Updates both the CheckMenuItem state and the visible text checkmark.
+fn update_device_items(
+    items: &[(CheckMenuItem, String, String)],
+    current_device: &str,
+    devices: &[crate::visualizer::backend::DeviceInfo],
+) {
+    let want_default = crate::visualizer::backend::is_default_request(current_device);
+    for (item, dev_id, base_label) in items {
+        let is_selected = if dev_id == "default" {
+            want_default
+        } else {
+            !want_default
+                && (dev_id == current_device
+                    || devices
+                        .iter()
+                        .any(|d| &d.id == dev_id && matches_current(d, current_device)))
+        };
+        item.set_checked(is_selected);
+        item.set_text(format_item_text(base_label, is_selected));
     }
 }
 
@@ -320,17 +335,18 @@ fn build_menu(
     let open_logs = MenuItemBuilder::new().text("Open Logs").enabled(true).build();
     let quit = MenuItemBuilder::new().text("Quit").enabled(true).build();
 
-    let mut device_items: Vec<(CheckMenuItem, String)> = Vec::new();
+    let mut device_items: Vec<(CheckMenuItem, String, String)> = Vec::new();
 
+    let default_base = "System Default".to_string();
     let default_item = CheckMenuItemBuilder::new()
-        .text("System Default")
+        .text(format_item_text(&default_base, want_default))
         .enabled(true)
         .checked(want_default)
         .build();
-    device_items.push((default_item, "default".to_string()));
+    device_items.push((default_item, "default".to_string(), default_base));
 
     let audio_menu = SubmenuBuilder::new()
-        .text("Audio Input")
+        .text("Audio Device")
         .enabled(true)
         .build()
         .expect("audio submenu");
@@ -339,13 +355,15 @@ fn build_menu(
     if !devices.is_empty() {
         let _ = audio_menu.append(&PredefinedMenuItem::separator());
         for d in devices {
+            let is_selected = !want_default && matches_current(d, &current_device);
+            let base_label = d.label.clone();
             let item = CheckMenuItemBuilder::new()
-                .text(&d.label)
+                .text(format_item_text(&base_label, is_selected))
                 .enabled(true)
-                .checked(!want_default && matches_current(d, &current_device))
+                .checked(is_selected)
                 .build();
             let _ = audio_menu.append(&item);
-            device_items.push((item, d.id.clone()));
+            device_items.push((item, d.id.clone(), base_label));
         }
     }
     let _ = menu.append(&audio_menu);

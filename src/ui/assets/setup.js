@@ -93,7 +93,7 @@ async function saveSettings(e) {
             state.rpc.swapRpcLines = el('rpc_swapLines').checked;
         }
 
-        if (el('sys_audioDevice').value !== 'default') {
+        if (el('sys_audioDevice') && el('sys_audioDevice').value !== 'default') {
             state.overlay.visualizer.audioDevice = el('sys_audioDevice').value;
         }
 
