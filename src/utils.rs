@@ -170,7 +170,7 @@ pub fn create_desktop_shortcut() {
         );
         let _ = Command::new("powershell")
             .creation_flags(0x08000000)
-            .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
             .output();
     }
 }
@@ -187,7 +187,7 @@ pub fn create_start_menu_shortcut() {
         );
         let _ = Command::new("powershell")
             .creation_flags(0x08000000)
-            .args(&["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
             .output();
     }
 }

@@ -26,7 +26,10 @@ Everything is configured from the web dashboard at `http://localhost:3000/settin
 
 #### OBS Studio Quick Setup
 Add an **OBS Browser Source** pointing to `http://localhost:3000`:
-- **Dimensions:** `800 x 200` for compact layouts, or `1000 x 360` for full layout.
+- **Dimensions:**
+  - **Full Layout:** `1360 x 440`
+  - **Compact Bar:** `800 x 200`
+  - **Compact Minimal:** `540 x 100`
 - **Instant Scene Overrides:** Override the active layout per scene by appending query parameters directly to the Browser Source URL:
   - `http://localhost:3000/?layout=full` (Full banner with blurred art)
   - `http://localhost:3000/?layout=compact-bar` (Horizontal bar for screen edges)
@@ -52,7 +55,7 @@ Download the package for your operating system from the [Releases](https://githu
 
 ### Windows (64-bit)
 1. Download **`T_Music_Bot_RPC.zip`**.
-2. Extract the folder to your preferred directory (e.g. `C:\Program Files\T_Music_Bot_RPC` or `%LOCALAPPDATA%`).
+2. Extract the folder anywhere you want (e.g. `C:\Program Files\T_Music_Bot_RPC`, Desktop, or any preferred directory). The application is fully portable and runs from anywhere.
 3. Run `T_Music_Bot_RPC.exe`.
 4. The client runs in the background and appears in your System Tray notification area.
 5. **Autostart:** To run on boot, place a shortcut of `T_Music_Bot_RPC.exe` in `shell:startup` (Press `Win + R` -> type `shell:startup` -> Paste shortcut) or enable it from the web dashboard.

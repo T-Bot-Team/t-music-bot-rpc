@@ -57,7 +57,7 @@ fn ensure_appkit(own_launch: bool) {
     if let Some(mtm) = MainThreadMarker::new() {
         let app = NSApplication::sharedApplication(mtm);
         // Tray-only process: no Dock icon, no app menu takeover.
-        let _ = app.setActivationPolicy(NSApplicationActivationPolicyAccessory);
+        let _ = app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
         if own_launch {
             app.finishLaunching();
         }
