@@ -48,7 +48,7 @@ fn get_widget_styles(
         #img-container {{ position: relative !important; flex-shrink: 0; z-index: 10; display: {show_thumb_style}; width: {thumb_size}; height: {thumb_size}; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
         #track-img-wrapper {{ width: 100%; height: 100%; border-radius: var(--inner-radius); overflow: hidden; position: relative; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1); }}
         #track-img {{ width: 100%; height: 100%; object-fit: cover; opacity: 1; }}
-        #avatar-img {{ position: absolute; top: {avatar_offset}; left: {avatar_offset}; width: {avatar_size}; height: {avatar_size}; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid transparent; box-sizing: border-box; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; transform: translate(0, 0); }}
+        #avatar-img {{ position: absolute; top: {avatar_offset}; left: {avatar_offset}; width: {avatar_size}; height: {avatar_size}; z-index: 110; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: none !important; outline: none !important; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; transform: translate(0, 0); }}
         #avatar-img.loading {{ opacity: 0; }}
         #info {{ display: flex; flex-direction: column; justify-content: center; min-height: 100px; flex-grow: 1; min-width: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 15px; }}
         #info.centered {{ align-items: center; text-align: center; }}
@@ -392,16 +392,13 @@ fn get_widget_scripts(
                     cTop = domColor; 
                     cBot = domColor; 
                     titleEl.style.color = domColor; 
-                    avatarImg.style.borderColor = domColor; 
                 }} catch(e) {{ 
                     console.log("CORS block"); 
                 }}
             }} else if ({is_random} && !isOffline && !isNoCover) {{
                 titleEl.style.color = cTop;
-                avatarImg.style.borderColor = cTop;
             }} else {{
                 titleEl.style.color = '';
-                avatarImg.style.borderColor = '';
             }}
             if ((isGlobalSync || {is_random}) && !isOffline && !isNoCover) {{
                 widget.style.border = '2px solid transparent';
