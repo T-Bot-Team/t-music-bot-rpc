@@ -3,7 +3,7 @@
 A Discord Rich Presence client and OBS overlay for **T_Music_Bot**. Written in native Rust, one codebase for Windows, macOS and Linux, and it stays in your system tray once it's paired. The idea is simple: something you can leave running all day without ever noticing it's there.
 
 <p align="center">
-  <img src="assets/preview.gif" alt="T_Music_Bot RPC Preview" width="850">
+  <video src="assets/preview.webm" width="850" autoplay loop muted playsinline></video>
 </p>
 
 ---
